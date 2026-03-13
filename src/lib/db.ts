@@ -17,6 +17,20 @@ export type VisitorLog = {
   collegeOrOffice: string;
 };
 
+export const COLLEGES = [
+  'College of Arts and Sciences',
+  'College of Engineering',
+  'College of Computer Studies',
+  'College of Business Administration',
+  'College of Education',
+  'College of Nursing',
+  'College of Criminology',
+  'College of Music',
+  'Graduate School',
+  'University Office',
+  'Other'
+];
+
 // Seed data
 const INITIAL_VISITORS: Visitor[] = [
   { id: '2023-0001', name: 'John Doe', college: 'College of Arts and Sciences', office: 'N/A', type: 'student' },

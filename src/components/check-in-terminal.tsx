@@ -1,30 +1,45 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { db, type Visitor, type Purpose } from '@/lib/db';
-import { Loader2, User, Building2, CheckCircle2, ShieldAlert } from 'lucide-react';
+import { db, type Purpose, COLLEGES } from '@/lib/db';
+import { Loader2, User, Building2, CheckCircle2, IdCard, ChevronRight, ArrowLeft } from 'lucide-react';
+import { Progress } from '@/components/ui/progress';
+
+type Step = 'id' | 'info' | 'purpose' | 'success';
 
 export default function CheckInTerminal() {
-  const [idInput, setIdInput] = useState('');
+  const [step, setStep] = useState<Step>('id');
   const [isLoading, setIsLoading] = useState(false);
-  const [visitor, setVisitor] = useState<Visitor | null>(null);
-  const [step, setStep] = useState<'identify' | 'purpose' | 'success'>('identify');
+  
+  // Form State
+  const [idInput, setIdInput] = useState('');
+  const [name, setName] = useState('');
+  const [college, setCollege] = useState('');
   const [selectedPurpose, setSelectedPurpose] = useState<Purpose>('reading books');
+  
   const { toast } = useToast();
 
-  const handleIdentify = async (e?: React.FormEvent) => {
+  const progress = {
+    'id': 25,
+    'info': 50,
+    'purpose': 75,
+    'success': 100
+  }[step];
+
+  const handleIdSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault();
     if (!idInput.trim()) return;
 
     setIsLoading(true);
-    // Simulate API delay
-    await new Promise(r => setTimeout(r, 800));
+    // Artificial delay to simulate processing/lookup
+    await new Promise(r => setTimeout(r, 600));
 
     if (db.isBlocked(idInput)) {
       toast({
@@ -36,137 +51,214 @@ export default function CheckInTerminal() {
       return;
     }
 
-    const found = db.getVisitor(idInput);
-    if (found) {
-      setVisitor(found);
-      setStep('purpose');
-    } else {
-      toast({
-        variant: "destructive",
-        title: "Invalid Credentials",
-        description: "Please check your ID or institutional email.",
-      });
+    const existingVisitor = db.getVisitor(idInput);
+    if (existingVisitor) {
+      setName(existingVisitor.name);
+      setCollege(existingVisitor.college !== 'N/A' ? existingVisitor.college : existingVisitor.office);
     }
+    
+    setStep('info');
     setIsLoading(false);
   };
 
+  const handleInfoSubmit = (e?: React.FormEvent) => {
+    e?.preventDefault();
+    if (!name.trim() || !college) {
+      toast({
+        variant: "destructive",
+        title: "Missing Information",
+        description: "Please provide your name and select your college/office.",
+      });
+      return;
+    }
+    setStep('purpose');
+  };
+
   const handleCompleteCheckIn = async () => {
-    if (!visitor) return;
-    
     setIsLoading(true);
+    
     db.addLog({
-      visitorId: visitor.id,
-      visitorName: visitor.name,
-      collegeOrOffice: visitor.college !== 'N/A' ? visitor.college : visitor.office,
+      visitorId: idInput,
+      visitorName: name,
+      collegeOrOffice: college,
       checkInTime: new Date().toISOString(),
       purposeOfVisit: selectedPurpose,
     });
     
-    await new Promise(r => setTimeout(r, 600));
+    await new Promise(r => setTimeout(r, 800));
     setStep('success');
     setIsLoading(false);
 
-    // Reset after 3 seconds
+    // Reset after 4 seconds
     setTimeout(() => {
-      setStep('identify');
+      setStep('id');
       setIdInput('');
-      setVisitor(null);
+      setName('');
+      setCollege('');
       setSelectedPurpose('reading books');
     }, 4000);
   };
 
   return (
     <Card className="w-full border-2 shadow-xl overflow-hidden animate-in fade-in zoom-in duration-300">
+      <div className="bg-muted/30 p-1 no-print">
+        <Progress value={progress} className="h-1 rounded-none bg-transparent" />
+      </div>
+      
       <CardContent className="p-0">
-        {step === 'identify' && (
-          <div className="p-12 text-center space-y-6">
-            <div className="space-y-2">
-              <CardTitle className="text-4xl font-headline font-bold text-primary">Terminal Check-In</CardTitle>
-              <CardDescription className="text-lg">Tap your RFID ID or enter institutional email to begin</CardDescription>
+        {step === 'id' && (
+          <div className="p-12 text-center space-y-8">
+            <div className="space-y-3">
+              <div className="mx-auto w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center text-primary">
+                <IdCard className="w-8 h-8" />
+              </div>
+              <CardTitle className="text-4xl font-headline font-bold text-primary">Student Identification</CardTitle>
+              <CardDescription className="text-lg">Please enter your Student ID Number to begin</CardDescription>
             </div>
             
-            <form onSubmit={handleIdentify} className="max-w-md mx-auto space-y-4">
+            <form onSubmit={handleIdSubmit} className="max-w-md mx-auto space-y-6">
               <div className="space-y-2 text-left">
-                <Label htmlFor="id-input" className="text-muted-foreground">RFID ID / Google Email</Label>
+                <Label htmlFor="id-input" className="text-muted-foreground text-sm uppercase tracking-wider font-bold">Identity Credential</Label>
                 <Input
                   id="id-input"
-                  placeholder="e.g. 2023-XXXX or user@neu.edu.ph"
+                  placeholder="e.g. 2023-XXXX"
                   value={idInput}
                   onChange={(e) => setIdInput(e.target.value)}
-                  className="h-14 text-xl text-center"
+                  className="h-16 text-2xl text-center border-2 focus:ring-accent"
                   autoFocus
                 />
               </div>
-              <Button type="submit" className="w-full h-14 text-xl" disabled={isLoading}>
-                {isLoading ? <Loader2 className="animate-spin mr-2" /> : "Verify Access"}
+              <Button type="submit" className="w-full h-14 text-xl gap-2 shadow-lg" disabled={isLoading}>
+                {isLoading ? <Loader2 className="animate-spin" /> : <>Next Step <ChevronRight className="w-5 h-5" /></>}
               </Button>
             </form>
           </div>
         )}
 
-        {step === 'purpose' && visitor && (
-          <div className="flex flex-col md:flex-row min-h-[400px]">
-            <div className="md:w-1/3 bg-primary text-primary-foreground p-8 flex flex-col justify-center items-center text-center space-y-4">
-              <div className="bg-white/20 p-4 rounded-full">
-                <User className="w-16 h-16" />
-              </div>
-              <div>
-                <h3 className="text-2xl font-bold">{visitor.name}</h3>
-                <p className="opacity-80">{visitor.id}</p>
-                <div className="flex items-center justify-center gap-2 mt-2">
-                  <Building2 className="w-4 h-4" />
-                  <span className="text-sm">{visitor.college !== 'N/A' ? visitor.college : visitor.office}</span>
-                </div>
+        {step === 'info' && (
+          <div className="p-12 space-y-8">
+            <div className="flex items-center gap-4">
+              <Button variant="ghost" size="icon" onClick={() => setStep('id')} className="rounded-full">
+                <ArrowLeft className="w-5 h-5" />
+              </Button>
+              <div className="space-y-1">
+                <CardTitle className="text-3xl font-bold text-primary">Personal Details</CardTitle>
+                <p className="text-muted-foreground">Tell us who you are</p>
               </div>
             </div>
-            <div className="md:w-2/3 p-8 bg-white dark:bg-card space-y-6">
-              <div className="space-y-2">
-                <h3 className="text-2xl font-bold text-primary">Purpose of Visit</h3>
-                <p className="text-muted-foreground">Select your main reason for visiting today:</p>
+
+            <form onSubmit={handleInfoSubmit} className="max-w-2xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-8">
+              <div className="space-y-3">
+                <Label htmlFor="name" className="text-sm font-bold uppercase text-muted-foreground">Full Name</Label>
+                <div className="relative">
+                  <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                  <Input
+                    id="name"
+                    placeholder="Enter your full name"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    className="h-14 pl-10 text-lg border-2"
+                    required
+                  />
+                </div>
               </div>
 
+              <div className="space-y-3">
+                <Label htmlFor="college" className="text-sm font-bold uppercase text-muted-foreground">College / Office</Label>
+                <div className="relative">
+                  <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground z-10" />
+                  <Select value={college} onValueChange={setCollege}>
+                    <SelectTrigger className="h-14 pl-10 text-lg border-2">
+                      <SelectValue placeholder="Select affiliation" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {COLLEGES.map((c) => (
+                        <SelectItem key={c} value={c}>{c}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <Button type="submit" className="md:col-span-2 w-full h-14 text-xl gap-2 mt-4" disabled={isLoading}>
+                Continue <ChevronRight className="w-5 h-5" />
+              </Button>
+            </form>
+          </div>
+        )}
+
+        {step === 'purpose' && (
+          <div className="p-12 space-y-8">
+             <div className="flex items-center gap-4">
+              <Button variant="ghost" size="icon" onClick={() => setStep('info')} className="rounded-full">
+                <ArrowLeft className="w-5 h-5" />
+              </Button>
+              <div className="space-y-1">
+                <CardTitle className="text-3xl font-bold text-primary">Purpose of Visit</CardTitle>
+                <p className="text-muted-foreground">Select your main reason for visiting today</p>
+              </div>
+            </div>
+
+            <div className="max-w-3xl mx-auto space-y-8">
               <RadioGroup
                 value={selectedPurpose}
                 onValueChange={(v) => setSelectedPurpose(v as Purpose)}
                 className="grid grid-cols-1 md:grid-cols-2 gap-4"
               >
                 {[
-                  { value: 'reading books', label: 'Reading Books' },
-                  { value: 'research in thesis', label: 'Thesis Research' },
-                  { value: 'use of computer', label: 'Computer Use' },
-                  { value: 'doing assignments', label: 'Doing Assignments' }
+                  { value: 'reading books', label: 'Reading Books', description: 'Accessing physical collection' },
+                  { value: 'research in thesis', label: 'Thesis Research', description: 'Academic data gathering' },
+                  { value: 'use of computer', label: 'Computer Use', description: 'Internet or software tools' },
+                  { value: 'doing assignments', label: 'Doing Assignments', description: 'Study and coursework' }
                 ].map((p) => (
                   <div key={p.value}>
                     <RadioGroupItem value={p.value} id={p.value} className="peer sr-only" />
                     <Label
                       htmlFor={p.value}
-                      className="flex items-center justify-center p-4 border-2 rounded-xl cursor-pointer hover:bg-secondary/50 peer-data-[state=checked]:border-accent peer-data-[state=checked]:bg-accent/10 transition-all"
+                      className="flex flex-col gap-1 p-6 border-2 rounded-2xl cursor-pointer hover:bg-secondary/50 peer-data-[state=checked]:border-accent peer-data-[state=checked]:bg-accent/5 transition-all text-center"
                     >
-                      {p.label}
+                      <span className="text-xl font-bold">{p.label}</span>
+                      <span className="text-sm text-muted-foreground">{p.description}</span>
                     </Label>
                   </div>
                 ))}
               </RadioGroup>
 
-              <Button onClick={handleCompleteCheckIn} className="w-full h-14 text-xl" disabled={isLoading}>
-                {isLoading ? <Loader2 className="animate-spin mr-2" /> : "Confirm Entry"}
-              </Button>
+              <div className="p-6 bg-muted/30 rounded-xl flex items-center justify-between border">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center text-primary">
+                    <User className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold leading-none">{name}</p>
+                    <p className="text-xs text-muted-foreground">{college}</p>
+                  </div>
+                </div>
+                <Button onClick={handleCompleteCheckIn} className="h-14 px-10 text-xl font-bold shadow-xl" disabled={isLoading}>
+                  {isLoading ? <Loader2 className="animate-spin mr-2" /> : "Confirm & Check In"}
+                </Button>
+              </div>
             </div>
           </div>
         )}
 
-        {step === 'success' && visitor && (
-          <div className="p-20 text-center space-y-6 bg-accent/10">
+        {step === 'success' && (
+          <div className="p-24 text-center space-y-8 bg-accent/5">
             <div className="flex justify-center">
-              <div className="bg-accent p-4 rounded-full text-white animate-bounce">
-                <CheckCircle2 className="w-20 h-20" />
+              <div className="bg-accent p-6 rounded-full text-white animate-bounce shadow-2xl">
+                <CheckCircle2 className="w-24 h-24" />
               </div>
             </div>
-            <div className="space-y-2">
-              <h2 className="text-5xl font-bold text-primary">Welcome to NEU Library!</h2>
-              <p className="text-2xl text-muted-foreground">Enjoy your stay, {visitor.name.split(' ')[0]}.</p>
+            <div className="space-y-3">
+              <h2 className="text-6xl font-black text-primary tracking-tighter">Welcome!</h2>
+              <p className="text-3xl text-muted-foreground">Enjoy your stay at the NEU Library, <span className="text-primary font-bold">{name.split(' ')[0]}</span>.</p>
             </div>
-            <p className="text-sm text-muted-foreground animate-pulse">Automatically returning to standby...</p>
+            <div className="pt-8">
+              <p className="text-sm text-muted-foreground inline-flex items-center gap-2 px-4 py-2 bg-white rounded-full border shadow-sm">
+                <span className="w-2 h-2 bg-accent rounded-full animate-pulse" />
+                Terminal resetting for next visitor...
+              </p>
+            </div>
           </div>
         )}
       </CardContent>
