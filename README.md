@@ -58,7 +58,7 @@ To further improve the library experience, the following features are planned fo
 | Field | Type | Description |
 | :--- | :--- | :--- |
 | `uid` | string | Unique Firebase ID |
-| `email` | string | Student ID |
+| `email` | string | @neu.edu.ph or Student ID |
 | `role` | string | 'admin' or 'user' |
 | `isBlocked` | boolean | Access control status |
 
