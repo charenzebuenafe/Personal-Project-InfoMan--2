@@ -23,11 +23,6 @@
     --border: 153 20% 90%;
     --input: 153 20% 90%;
     --ring: 153 100% 18%;
-    --chart-1: 153 100% 18%;
-    --chart-2: 48 100% 50%;
-    --chart-3: 0 100% 40%;
-    --chart-4: 153 60% 30%;
-    --chart-5: 48 80% 40%;
     --radius: 0.75rem;
   }
 
@@ -40,17 +35,10 @@
     --popover-foreground: 0 0% 100%;
     --primary: 153 100% 25%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 153 40% 10%;
-    --secondary-foreground: 0 0% 100%;
-    --muted: 153 40% 10%;
-    --muted-foreground: 153 20% 65%;
     --accent: 48 100% 50%;
     --accent-foreground: 153 100% 2%;
     --destructive: 0 100% 40%;
-    --destructive-foreground: 0 0% 100%;
     --border: 153 40% 15%;
-    --input: 153 40% 15%;
-    --ring: 153 100% 25%;
   }
 }
 
@@ -61,17 +49,11 @@
   body {
     @apply bg-background text-foreground font-body;
   }
-  h1, h2, h3, h4, h5, h6 {
-    @apply font-headline;
-  }
 }
 
 @media print {
   .no-print {
     display: none !important;
-  }
-  .print-only {
-    display: block !important;
   }
   body {
     background: white !important;

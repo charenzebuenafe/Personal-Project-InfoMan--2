@@ -18,7 +18,6 @@ export default function CheckInTerminal() {
   const [step, setStep] = useState<Step>('id');
   const [isLoading, setIsLoading] = useState(false);
   
-  // Form State
   const [idInput, setIdInput] = useState('');
   const [name, setName] = useState('');
   const [college, setCollege] = useState('');
@@ -26,19 +25,13 @@ export default function CheckInTerminal() {
   
   const { toast } = useToast();
 
-  const progress = {
-    'id': 25,
-    'info': 50,
-    'purpose': 75,
-    'success': 100
-  }[step];
+  const progress = { 'id': 25, 'info': 50, 'purpose': 75, 'success': 100 }[step];
 
   const handleIdSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault();
     if (!idInput.trim()) return;
 
     setIsLoading(true);
-    // Artificial delay to simulate processing/lookup
     await new Promise(r => setTimeout(r, 600));
 
     if (db.isBlocked(idInput)) {
@@ -53,7 +46,6 @@ export default function CheckInTerminal() {
 
     const existingVisitor = db.getVisitor(idInput);
     if (existingVisitor) {
-      // Returning visitor found - populate info and SKIP to purpose
       setName(existingVisitor.name);
       setCollege(existingVisitor.college !== 'N/A' ? existingVisitor.college : existingVisitor.office);
       setStep('purpose');
@@ -62,7 +54,6 @@ export default function CheckInTerminal() {
         description: "Your details have been retrieved.",
       });
     } else {
-      // New visitor - proceed to collect info
       setStep('info');
     }
     setIsLoading(false);
@@ -84,7 +75,6 @@ export default function CheckInTerminal() {
   const handleCompleteCheckIn = async () => {
     setIsLoading(true);
     
-    // Ensure visitor is registered if they were new
     const existing = db.getVisitor(idInput);
     if (!existing) {
       db.registerVisitor({
@@ -108,7 +98,6 @@ export default function CheckInTerminal() {
     setStep('success');
     setIsLoading(false);
 
-    // Reset after 4 seconds
     setTimeout(() => {
       setStep('id');
       setIdInput('');
