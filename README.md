@@ -3,6 +3,7 @@
 A digital logbook and analytics platform designed for **New Era University** to track library usage, monitor visitor statistics, and manage facility access via institutional authentication.
 
 **Live Demo:** [https://personal-project-info-man-2.vercel.app](https://personal-project-info-man-2.vercel.app)
+**adminpass: "admin123"**
 
 ---
 
