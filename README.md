@@ -11,7 +11,7 @@ This system replaces traditional paper logbooks with a secure, cloud-based solut
 
 ### Key Objectives:
 * **Automate Data Collection:** Eliminate manual entry errors and physical contact.
-* **Institutional Security:** Restrict access to `@neu.edu.ph` email holders.
+* **Institutional Security:** Restrict access to `student ID` Students.
 * **Admin Insights:** Provide a dashboard to filter usage by day, week, month, and college.
 
 ---
