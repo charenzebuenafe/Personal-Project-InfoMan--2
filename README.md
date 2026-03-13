@@ -58,9 +58,3 @@ This system replaces traditional paper logbooks with a secure, cloud-based solut
 | `timestamp` | timestamp | Date and time of entry |
 
 ---
-
-## 🛠️ Installation & Setup
-
-1. **Clone the repository:**
-   ```bash
-   git clone [https://github.com/your-username/neu-library-app.git](https://github.com/your-username/neu-library-app.git)
