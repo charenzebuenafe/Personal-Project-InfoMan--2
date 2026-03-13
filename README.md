@@ -27,7 +27,7 @@ This system replaces traditional paper logbooks with a secure, cloud-based solut
 ## ✨ Features
 
 ### For Students & Faculty (End-Users)
-* **Single Sign-On (SSO):** Quick login via Google Institutional account.
+* **Single Sign-On (SSO):** Quick login via Student ID.
 * **Quick Check-in:** Simple form to select "Purpose of Visit" and "College/Department."
 * **Instant Feedback:** Success modal with a "Welcome to NEU Library" message.
 
