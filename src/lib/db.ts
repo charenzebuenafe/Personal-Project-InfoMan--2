@@ -65,6 +65,12 @@ export const db = {
   },
 
   getBlockedIds: () => Array.from(blockedIds),
+
+  registerVisitor: (visitor: Visitor) => {
+    if (!visitors.find(v => v.id === visitor.id)) {
+      visitors.push(visitor);
+    }
+  },
   
   addLog: (log: Omit<VisitorLog, 'id'>) => {
     const newLog = { ...log, id: Math.random().toString(36).substr(2, 9) };

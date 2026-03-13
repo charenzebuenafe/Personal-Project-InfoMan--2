@@ -53,11 +53,18 @@ export default function CheckInTerminal() {
 
     const existingVisitor = db.getVisitor(idInput);
     if (existingVisitor) {
+      // Returning visitor found - populate info and SKIP to purpose
       setName(existingVisitor.name);
       setCollege(existingVisitor.college !== 'N/A' ? existingVisitor.college : existingVisitor.office);
+      setStep('purpose');
+      toast({
+        title: `Welcome back, ${existingVisitor.name.split(' ')[0]}!`,
+        description: "Your details have been retrieved.",
+      });
+    } else {
+      // New visitor - proceed to collect info
+      setStep('info');
     }
-    
-    setStep('info');
     setIsLoading(false);
   };
 
@@ -77,6 +84,18 @@ export default function CheckInTerminal() {
   const handleCompleteCheckIn = async () => {
     setIsLoading(true);
     
+    // Ensure visitor is registered if they were new
+    const existing = db.getVisitor(idInput);
+    if (!existing) {
+      db.registerVisitor({
+        id: idInput,
+        name: name,
+        college: college,
+        office: 'N/A',
+        type: 'student'
+      });
+    }
+
     db.addLog({
       visitorId: idInput,
       visitorName: name,
@@ -190,7 +209,7 @@ export default function CheckInTerminal() {
         {step === 'purpose' && (
           <div className="p-12 space-y-8">
              <div className="flex items-center gap-4">
-              <Button variant="ghost" size="icon" onClick={() => setStep('info')} className="rounded-full">
+              <Button variant="ghost" size="icon" onClick={() => setStep('id')} className="rounded-full">
                 <ArrowLeft className="w-5 h-5" />
               </Button>
               <div className="space-y-1">
