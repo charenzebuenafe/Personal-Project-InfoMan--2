@@ -19,7 +19,7 @@ export default function Home() {
             </div>
           </div>
           
-          <Link href="/admin/dashboard">
+          <Link href="/admin/login">
             <Button variant="outline" className="flex items-center gap-2">
               <ShieldCheck className="w-4 h-4" />
               Admin Access

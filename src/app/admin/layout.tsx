@@ -1,7 +1,8 @@
 "use client";
 
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { LayoutDashboard, Users, UserX, FileText, ArrowLeft, LogOut } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -9,6 +10,40 @@ import { Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupConte
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
+  const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    const auth = localStorage.getItem('admin_auth');
+    if (pathname === '/admin/login') {
+      setIsAuthorized(true);
+      return;
+    }
+
+    if (auth !== 'true') {
+      router.push('/admin/login');
+    } else {
+      setIsAuthorized(true);
+    }
+  }, [pathname, router]);
+
+  const handleSignOut = () => {
+    localStorage.removeItem('admin_auth');
+    router.push('/');
+  };
+
+  if (isAuthorized === null) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="animate-pulse text-primary font-medium">Verifying authorization...</div>
+      </div>
+    );
+  }
+
+  // Don't wrap the login page in the sidebar layout
+  if (pathname === '/admin/login') {
+    return <>{children}</>;
+  }
 
   const menuItems = [
     { title: 'Dashboard', icon: LayoutDashboard, href: '/admin/dashboard' },
@@ -56,7 +91,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   Terminal Mode
                 </Button>
               </Link>
-              <Button variant="ghost" className="w-full justify-start gap-2 text-destructive">
+              <Button 
+                variant="ghost" 
+                className="w-full justify-start gap-2 text-destructive"
+                onClick={handleSignOut}
+              >
                 <LogOut className="w-4 h-4" />
                 Sign Out
               </Button>
