@@ -10,7 +10,7 @@ A digital logbook and analytics platform designed for **New Era University** to 
 This system replaces traditional paper logbooks with a secure, cloud-based solution. It allows students and faculty to check in using their institutional credentials and provides administrators with real-time data visualization of library traffic.
 
 ### Key Objectives:
-* **Automate Data Collection:** Eliminate manual entry errors.
+* **Automate Data Collection:** Eliminate manual entry errors and physical contact.
 * **Institutional Security:** Restrict access to `@neu.edu.ph` email holders.
 * **Admin Insights:** Provide a dashboard to filter usage by day, week, month, and college.
 
@@ -33,9 +33,21 @@ This system replaces traditional paper logbooks with a secure, cloud-based solut
 
 ### For Library Staff (Administrators)
 * **Analytics Dashboard:** Visual cards showing visitor counts filtered by timeframes.
-* **Demographic Breakdown:** Stats categorized by Undergraduate Programs.
-* **User Management:** * Search bar to find specific user logs.
-    * **Block/Unblock:** Ability to restrict specific users from logging into the facility.
+* **Demographic Breakdown:** Stats categorized by Undergraduate Programs (e.g., Nursing, CS, Engineering).
+* **User Management:** * **Search:** Find specific user logs by name or email.
+    * **Block/Unblock:** Toggle account status to manage facility access.
+
+---
+
+## 🔮 Future Enhancements (Roadmap)
+To further improve the library experience, the following features are planned for future releases:
+
+* **📲 QR Code Integration:** Generate a unique QR code for each student. Instead of manual logging, students simply scan their code at a kiosk for 1-second check-ins.
+* **📈 Heatmap Analytics:** A visual "Busy Times" chart to help students see when the library is most crowded before they arrive.
+* **🔔 Real-time Capacity Alerts:** Notify administrators when the library reaches its maximum seating capacity.
+* **📚 Book Integration:** Connect the visitor log to the library's physical collection, allowing users to see their borrowed books directly in the app.
+* **📅 Study Room Booking:** Add a module for students to reserve study pods or group discussion rooms in advance.
+* **🌙 Dark Mode Support:** Enhance user experience for late-night study sessions.
 
 ---
 
@@ -57,4 +69,3 @@ This system replaces traditional paper logbooks with a secure, cloud-based solut
 | `purpose` | string | Reason for visit |
 | `timestamp` | timestamp | Date and time of entry |
 
----
