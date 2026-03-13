@@ -1,6 +1,7 @@
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { type VisitorLog } from '@/lib/db';
 import { Users, Clock, Compass, TrendingUp } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 export default function StatsOverview({ logs }: { logs: VisitorLog[] }) {
   const totalVisitors = logs.length;
@@ -22,21 +23,21 @@ export default function StatsOverview({ logs }: { logs: VisitorLog[] }) {
   const peakTimeLabel = peakHour !== undefined ? `${peakHour}:00 - ${+peakHour + 1}:00` : 'N/A';
 
   const stats = [
-    { title: 'Total Visits', value: totalVisitors, icon: Users, color: 'text-blue-500', bg: 'bg-blue-50' },
-    { title: 'Peak Purpose', value: peakPurpose, icon: Compass, color: 'text-cyan-500', bg: 'bg-cyan-50', capitalize: true },
-    { title: 'Peak Hour', value: peakTimeLabel, icon: Clock, color: 'text-indigo-500', bg: 'bg-indigo-50' },
-    { title: 'Unique Users', value: new Set(logs.map(l => l.visitorId)).size, icon: TrendingUp, color: 'text-emerald-500', bg: 'bg-emerald-50' },
+    { title: 'Total Visits', value: totalVisitors, icon: Users, color: 'text-primary', bg: 'bg-primary/10' },
+    { title: 'Peak Purpose', value: peakPurpose, icon: Compass, color: 'text-accent-foreground', bg: 'bg-accent/20', capitalize: true },
+    { title: 'Peak Hour', value: peakTimeLabel, icon: Clock, color: 'text-primary', bg: 'bg-primary/10' },
+    { title: 'Unique Users', value: new Set(logs.map(l => l.visitorId)).size, icon: TrendingUp, color: 'text-accent-foreground', bg: 'bg-accent/20' },
   ];
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
       {stats.map((stat) => (
-        <Card key={stat.title}>
+        <Card key={stat.title} className="border-2 shadow-sm">
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-muted-foreground">{stat.title}</p>
-                <h3 className={cn("text-2xl font-bold mt-1", stat.capitalize && "capitalize")}>{stat.value}</h3>
+                <p className="text-sm font-bold text-muted-foreground uppercase tracking-wider">{stat.title}</p>
+                <h3 className={cn("text-2xl font-black mt-1 text-primary", stat.capitalize && "capitalize")}>{stat.value}</h3>
               </div>
               <div className={cn("p-3 rounded-xl", stat.bg)}>
                 <stat.icon className={cn("w-6 h-6", stat.color)} />
@@ -47,8 +48,4 @@ export default function StatsOverview({ logs }: { logs: VisitorLog[] }) {
       ))}
     </div>
   );
-}
-
-function cn(...classes: any[]) {
-  return classes.filter(Boolean).join(' ');
 }
