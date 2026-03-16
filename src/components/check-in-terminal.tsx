@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect } from 'react';
@@ -9,10 +8,11 @@ import { Input } from '@/components/ui/input';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, User, Building2, CheckCircle2, ChevronRight, Mail, LogIn, IdCard } from 'lucide-react';
+import { Loader2, User, Building2, CheckCircle2, ChevronRight, Mail, IdCard } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
-import { useFirestore, useMemoFirebase } from '@/firebase';
+import { useFirestore, useAuth } from '@/firebase';
 import { collection, query, where, getDocs, doc, setDoc, addDoc, serverTimestamp } from 'firebase/firestore';
+import { signInAnonymously } from 'firebase/auth';
 
 const COLLEGES = [
   'College of Arts and Sciences',
@@ -32,6 +32,7 @@ type Step = 'email' | 'info' | 'purpose' | 'success';
 
 export default function CheckInTerminal() {
   const db = useFirestore();
+  const auth = useAuth();
   const { toast } = useToast();
 
   const [step, setStep] = useState<Step>('email');
@@ -42,6 +43,13 @@ export default function CheckInTerminal() {
   const [selectedPurpose, setSelectedPurpose] = useState('reading books');
   const [isEmployee, setIsEmployee] = useState(false);
   const [registeredUser, setRegisteredUser] = useState<any>(null);
+
+  // Sign in anonymously in the background so we have permissions to query Firestore
+  useEffect(() => {
+    signInAnonymously(auth).catch((err) => {
+      console.error("Anonymous auth failed", err);
+    });
+  }, [auth]);
 
   const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -61,7 +69,11 @@ export default function CheckInTerminal() {
       }
     } catch (error: any) {
       console.error(error);
-      toast({ variant: "destructive", title: "Error", description: "Failed to check registration status." });
+      toast({ 
+        variant: "destructive", 
+        title: "Access Error", 
+        description: "Could not connect to the database. Please try again." 
+      });
     } finally {
       setIsLoading(false);
     }
