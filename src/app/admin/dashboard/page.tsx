@@ -1,8 +1,8 @@
-
 "use client";
 
 import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Label } from '@/components/ui/label';
 import StatsOverview from '@/components/admin/stats-overview';
 import VisitorChart from '@/components/admin/visitor-chart';
 import AIInsights from '@/components/admin/ai-insights';
@@ -10,11 +10,11 @@ import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { CalendarIcon, Download, Filter, RefreshCcw } from 'lucide-react';
-import { format, subDays, subWeeks, subMonths } from 'date-fns';
+import { CalendarIcon, Download, Filter, Loader2 } from 'lucide-react';
+import { format, subWeeks } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, where, orderBy } from 'firebase/firestore';
+import { collection, query, orderBy } from 'firebase/firestore';
 
 const COLLEGES = [
   'All Colleges',
@@ -51,11 +51,7 @@ export default function AdminDashboard() {
 
   const logsQuery = useMemoFirebase(() => {
     if (!db) return null;
-    let q = query(collection(db, 'visit_logs'), orderBy('checkInDateTime', 'desc'));
-    
-    // In a real production app with massive data, you'd add composite indices and use where() clauses.
-    // For this MVP, we fetch and filter to ensure responsiveness and flexibility.
-    return q;
+    return query(collection(db, 'visit_logs'), orderBy('checkInDateTime', 'desc'));
   }, [db]);
 
   const { data: allLogs, isLoading } = useCollection(logsQuery);
@@ -112,7 +108,7 @@ export default function AdminDashboard() {
             </PopoverContent>
           </Popover>
           
-          <Button onClick={handlePrint} className="gap-2 bg-accent hover:bg-accent/90">
+          <Button onClick={handlePrint} className="gap-2 bg-accent hover:bg-accent/90 text-accent-foreground">
             <Download className="w-4 h-4" />
             Export PDF
           </Button>
@@ -208,7 +204,7 @@ export default function AdminDashboard() {
               </thead>
               <tbody className="divide-y">
                 {isLoading ? (
-                  <tr><td colSpan={5} className="text-center py-10"><Loader2 className="animate-spin mx-auto" /></td></tr>
+                  <tr><td colSpan={5} className="text-center py-10"><Loader2 className="animate-spin mx-auto text-primary" /></td></tr>
                 ) : filteredLogs.slice(0, 20).map((log) => (
                   <tr key={log.id}>
                     <td className="px-6 py-4 font-medium">{log.visitorName}</td>
