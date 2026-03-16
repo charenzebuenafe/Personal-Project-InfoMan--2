@@ -11,7 +11,7 @@ import { ShieldCheck, LogIn, Loader2, Home, Mail, Lock } from 'lucide-react';
 import Link from 'next/link';
 import { useToast } from '@/hooks/use-toast';
 import { useUser, useAuth, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
-import { signInAnonymously } from 'firebase/auth';
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
@@ -44,44 +44,58 @@ export default function AdminLoginPage() {
     e.preventDefault();
     const cleanEmail = email.toLowerCase().trim();
     
-    if (!cleanEmail) {
-      toast({ variant: "destructive", title: "Missing Email", description: "Please enter your institutional email." });
+    if (!cleanEmail || !password) {
+      toast({ variant: "destructive", title: "Incomplete Form", description: "Please enter both email and password." });
       return;
     }
 
     setIsLoading(true);
     
     try {
-      // PERMISSIVE LOGIN FOR PRIMARY ADMIN
-      if (cleanEmail === 'jcesperanza@neu.edu.ph') {
-        const userCredential = await signInAnonymously(auth);
-        const adminRef = doc(db, 'roles_admin', userCredential.user.uid);
-        
-        await setDoc(adminRef, {
-          email: cleanEmail,
-          grantedAt: serverTimestamp(),
-          role: 'Admin',
-          isAnonymousBypass: true
-        }).catch((err) => {
-          const permissionError = new FirestorePermissionError({
-            path: adminRef.path,
-            operation: 'create',
-            requestResourceData: { email: cleanEmail, role: 'Admin' },
-          });
-          errorEmitter.emit('permission-error', permissionError);
-          throw err;
-        });
+      // Attempt standard sign in
+      try {
+        await signInWithEmailAndPassword(auth, cleanEmail, password);
+      } catch (signInErr: any) {
+        // If it's the primary admin and login fails, try to register them
+        if (cleanEmail === 'jcesperanza@neu.edu.ph') {
+          try {
+            const userCredential = await createUserWithEmailAndPassword(auth, cleanEmail, password);
+            const adminRef = doc(db, 'roles_admin', userCredential.user.uid);
+            
+            await setDoc(adminRef, {
+              email: cleanEmail,
+              grantedAt: serverTimestamp(),
+              role: 'Admin',
+              isAutoProvisioned: true
+            }).catch((err) => {
+              const permissionError = new FirestorePermissionError({
+                path: adminRef.path,
+                operation: 'create',
+                requestResourceData: { email: cleanEmail, role: 'Admin' },
+              });
+              errorEmitter.emit('permission-error', permissionError);
+              throw err;
+            });
 
-        toast({ title: "Admin Bypass Active", description: "Logged in as primary administrator." });
-        return;
+            toast({ title: "Admin Account Created", description: "You are now registered as the system administrator." });
+            return;
+          } catch (createErr: any) {
+            // If email already in use, it means sign-in failed due to wrong password
+            if (createErr.code === 'auth/email-already-in-use') {
+              toast({ variant: "destructive", title: "Login Failed", description: "Incorrect password for this administrator account." });
+              return;
+            }
+            throw createErr;
+          }
+        }
+        throw signInErr;
       }
-
-      toast({ variant: "destructive", title: "Access Denied", description: "This portal is restricted to institutional administrators." });
     } catch (error: any) {
+      console.error(error);
       toast({ 
         variant: "destructive", 
-        title: "Login Error", 
-        description: error.message || "Failed to sign in." 
+        title: "Authentication Error", 
+        description: error.message || "Unauthorized access or invalid credentials." 
       });
     } finally {
       setIsLoading(false);
@@ -120,7 +134,7 @@ export default function AdminLoginPage() {
               </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="password" title="Bypass active for jcesperanza@neu.edu.ph" className="font-bold text-primary/70">Verification Code / Password</Label>
+              <Label htmlFor="password" title="Set your own password on first login" className="font-bold text-primary/70">Password</Label>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input 
@@ -133,6 +147,9 @@ export default function AdminLoginPage() {
                   disabled={isLoading}
                 />
               </div>
+              <p className="text-[10px] text-muted-foreground italic">
+                * If you are logging in for the first time, the password you enter here will be saved for your account.
+              </p>
             </div>
             <Button 
               type="submit" 
