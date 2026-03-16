@@ -19,7 +19,7 @@ import { FirestorePermissionError } from '@/firebase/errors';
 const PRIMARY_ADMINS = ['jcesperanza@neu.edu.ph', 'charenzejan.buenafe@neu.edu.ph'];
 
 export default function AdminLoginPage() {
-  const { user, isUserLoading } = useUser();
+  const { user } = useUser();
   const auth = useAuth();
   const db = useFirestore();
   const router = useRouter();
@@ -65,8 +65,6 @@ export default function AdminLoginPage() {
           try {
             userCredential = await createUserWithEmailAndPassword(auth, cleanEmail, password);
           } catch (createErr: any) {
-            // If creation fails because user already exists (invalid-credential was wrong), 
-            // then it really is an invalid password
             if (createErr.code === 'auth/email-already-in-use') {
               throw signInErr;
             }
@@ -83,8 +81,7 @@ export default function AdminLoginPage() {
         await setDoc(adminRef, {
           email: cleanEmail,
           grantedAt: serverTimestamp(),
-          role: 'Admin',
-          isAutoProvisioned: true
+          role: 'Admin'
         }, { merge: true }).catch((err) => {
           const permissionError = new FirestorePermissionError({
             path: adminRef.path,

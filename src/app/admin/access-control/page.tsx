@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState } from 'react';
@@ -12,9 +13,10 @@ import {
   ListTodo, 
   Loader2, 
   AlertCircle,
-  Settings2
+  Settings2,
+  UserMinus
 } from 'lucide-react';
-import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
+import { useFirestore, useCollection, useMemoFirebase, useUser } from '@/firebase';
 import { collection, query, doc, addDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
@@ -31,6 +33,7 @@ import {
 
 export default function AccessControlPage() {
   const db = useFirestore();
+  const { user } = useUser();
   const [isAdding, setIsAdding] = useState(false);
   const [newName, setNewName] = useState('');
   const [newDesc, setNewDesc] = useState('');
@@ -84,6 +87,27 @@ export default function AccessControlPage() {
 
   const handleDeletePurpose = async (id: string) => {
     const docRef = doc(db, 'purpose_of_visits', id);
+    try {
+      await deleteDoc(docRef).catch((err) => {
+        const permissionError = new FirestorePermissionError({
+          path: docRef.path,
+          operation: 'delete'
+        });
+        errorEmitter.emit('permission-error', permissionError);
+        throw err;
+      });
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  const handleRemoveAdmin = async (adminId: string) => {
+    if (adminId === user?.uid) {
+      alert("You cannot remove your own administrative access.");
+      return;
+    }
+
+    const docRef = doc(db, 'roles_admin', adminId);
     try {
       await deleteDoc(docRef).catch((err) => {
         const permissionError = new FirestorePermissionError({
@@ -200,7 +224,7 @@ export default function AccessControlPage() {
                 <div className="flex justify-center py-8"><Loader2 className="animate-spin text-primary" /></div>
               ) : (
                 admins?.map((admin) => (
-                  <div key={admin.id} className="flex items-center justify-between p-4 border rounded-xl">
+                  <div key={admin.id} className="flex items-center justify-between p-4 border rounded-xl group">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary">
                         <ShieldCheck className="w-5 h-5" />
@@ -210,7 +234,19 @@ export default function AccessControlPage() {
                         <p className="text-xs text-muted-foreground">ID: {admin.id}</p>
                       </div>
                     </div>
-                    <Badge variant="outline" className="bg-primary/5 text-primary border-primary/20">Active Admin</Badge>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline" className="bg-primary/5 text-primary border-primary/20">Active Admin</Badge>
+                      {admin.id !== user?.uid && (
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          className="text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                          onClick={() => handleRemoveAdmin(admin.id)}
+                        >
+                          <UserMinus className="w-4 h-4" />
+                        </Button>
+                      )}
+                    </div>
                   </div>
                 ))
               )}
@@ -218,7 +254,7 @@ export default function AccessControlPage() {
             <div className="mt-6 p-4 bg-accent/5 rounded-xl border-2 border-accent/20 flex gap-3">
               <AlertCircle className="w-5 h-5 text-accent-foreground shrink-0" />
               <p className="text-xs text-accent-foreground font-medium">
-                Admin status is managed via the <strong>roles_admin</strong> collection. Adding new admins currently requires manual entry or direct collection invitation.
+                Administrative roles are strictly linked to institutional email accounts. Use the removal tool to clear any redundant entries.
               </p>
             </div>
           </CardContent>
