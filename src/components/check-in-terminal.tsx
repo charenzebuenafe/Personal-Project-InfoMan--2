@@ -8,13 +8,14 @@ import { Input } from '@/components/ui/input';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, User, Building2, CheckCircle2, ChevronRight, Mail, IdCard } from 'lucide-react';
+import { Loader2, User, Building2, CheckCircle2, ChevronRight, Mail, IdCard, Cloud, Wifi } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 import { useFirestore, useAuth } from '@/firebase';
 import { collection, query, where, getDocs, doc, setDoc, addDoc, serverTimestamp } from 'firebase/firestore';
 import { signInAnonymously } from 'firebase/auth';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
+import { Badge } from '@/components/ui/badge';
 
 const COLLEGES = [
   'College of Arts and Sciences',
@@ -46,7 +47,6 @@ export default function CheckInTerminal() {
   const [isEmployee, setIsEmployee] = useState(false);
   const [registeredUser, setRegisteredUser] = useState<any>(null);
 
-  // Sign in anonymously in the background so we have permissions to query Firestore
   useEffect(() => {
     if (!auth.currentUser) {
       signInAnonymously(auth).catch((err) => {
@@ -81,7 +81,6 @@ export default function CheckInTerminal() {
         setStep('info');
       }
     } catch (error: any) {
-      // Central error listener handles Permission errors; we just stop loading here.
     } finally {
       setIsLoading(false);
     }
@@ -96,7 +95,6 @@ export default function CheckInTerminal() {
 
     setIsLoading(true);
     try {
-      // Use the current anonymous UID for the profile to satisfy isOwner rules if needed later
       const uid = auth.currentUser?.uid;
       if (!uid) throw new Error("Authentication required");
 
@@ -126,7 +124,6 @@ export default function CheckInTerminal() {
       setRegisteredUser(userData);
       setStep('purpose');
     } catch (error: any) {
-      // Handled by global emitter if permission error
     } finally {
       setIsLoading(false);
     }
@@ -169,7 +166,6 @@ export default function CheckInTerminal() {
         setRegisteredUser(null);
       }, 3000);
     } catch (error: any) {
-      // Handled by global emitter
     } finally {
       setIsLoading(false);
     }
@@ -179,8 +175,12 @@ export default function CheckInTerminal() {
 
   return (
     <Card className="w-full border-2 border-primary/20 shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-300">
-      <div className="bg-muted/30 p-1">
-        <Progress value={progress} className="h-1 rounded-none bg-transparent" />
+      <div className="bg-muted/30 p-2 flex justify-between items-center px-4">
+        <Progress value={progress} className="h-1 flex-1 bg-transparent mr-4" />
+        <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 gap-1.5 font-bold animate-pulse">
+          <Wifi className="w-3 h-3" />
+          Live Cloud Sync
+        </Badge>
       </div>
       
       <CardContent className="p-0">
@@ -214,6 +214,10 @@ export default function CheckInTerminal() {
                 {isLoading ? <Loader2 className="animate-spin" /> : "Next"} <ChevronRight className="w-5 h-5" />
               </Button>
             </form>
+            <p className="text-xs text-muted-foreground flex items-center justify-center gap-1.5 mt-4">
+              <Cloud className="w-3 h-3" />
+              Connected to NEU Central Database
+            </p>
           </div>
         )}
 
@@ -334,6 +338,7 @@ export default function CheckInTerminal() {
               <h2 className="text-6xl font-black text-primary tracking-tighter">Welcome to NEU Library!</h2>
               <p className="text-3xl text-muted-foreground">Enjoy your stay, <span className="text-accent-foreground font-bold bg-accent/30 px-2 rounded-md">{registeredUser?.fullName?.split(' ')[0]}</span>.</p>
             </div>
+            <p className="text-sm text-muted-foreground font-bold">Synchronizing with central logs...</p>
           </div>
         )}
       </CardContent>

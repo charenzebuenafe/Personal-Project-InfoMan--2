@@ -10,11 +10,12 @@ import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { CalendarIcon, Download, Filter, Loader2 } from 'lucide-react';
+import { CalendarIcon, Download, Filter, Loader2, Wifi, Database } from 'lucide-react';
 import { format, subWeeks } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, query, orderBy } from 'firebase/firestore';
+import { Badge } from '@/components/ui/badge';
 
 const COLLEGES = [
   'All Colleges',
@@ -76,8 +77,17 @@ export default function AdminDashboard() {
     <div className="space-y-8">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 no-print">
         <div>
-          <h1 className="text-3xl font-bold text-primary">Admin Dashboard</h1>
-          <p className="text-muted-foreground">Monitor NEU Library activity and trends.</p>
+          <div className="flex items-center gap-3">
+            <h1 className="text-3xl font-bold text-primary">Admin Dashboard</h1>
+            <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 gap-1.5 font-bold animate-pulse">
+              <Wifi className="w-3 h-3" />
+              Real-time Shared Database
+            </Badge>
+          </div>
+          <p className="text-muted-foreground flex items-center gap-1.5 mt-1">
+            <Database className="w-4 h-4" />
+            Monitoring activity across all Library Terminals
+          </p>
         </div>
         
         <div className="flex flex-wrap items-center gap-2">
@@ -188,7 +198,7 @@ export default function AdminDashboard() {
       <Card>
         <CardHeader>
           <CardTitle>Recent Activity</CardTitle>
-          <CardDescription>Filtered check-ins matching your criteria</CardDescription>
+          <CardDescription>Filtered check-ins matching your criteria (Synchronized across all terminals)</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="relative overflow-x-auto">
