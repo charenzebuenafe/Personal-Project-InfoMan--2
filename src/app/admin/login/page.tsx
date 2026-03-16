@@ -11,8 +11,10 @@ import { ShieldCheck, LogIn, Loader2, ArrowLeft, Mail, Lock } from 'lucide-react
 import Link from 'next/link';
 import { useToast } from '@/hooks/use-toast';
 import { useUser, useAuth, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
-import { signInWithEmailAndPassword } from 'firebase/auth';
-import { doc } from 'firebase/firestore';
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
 
 export default function AdminLoginPage() {
   const { user, isUserLoading } = useUser();
@@ -47,14 +49,47 @@ export default function AdminLoginPage() {
 
     setIsLoading(true);
     try {
+      // First attempt standard login
       await signInWithEmailAndPassword(auth, email, password);
     } catch (error: any) {
-      console.error(error);
-      toast({ 
-        variant: "destructive", 
-        title: "Login Failed", 
-        description: "Invalid credentials or account not authorized." 
-      });
+      // If login fails and it's the designated admin email, attempt auto-provisioning
+      if (email === 'jcesperanza@neu.edu.ph' && password === 'admin123') {
+        try {
+          const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+          const newUser = userCredential.user;
+          
+          // Grant admin role in Firestore
+          const adminRef = doc(db, 'roles_admin', newUser.uid);
+          await setDoc(adminRef, {
+            email: email,
+            grantedAt: serverTimestamp(),
+            role: 'Admin'
+          }).catch((err) => {
+             const permissionError = new FirestorePermissionError({
+                path: adminRef.path,
+                operation: 'create',
+                requestResourceData: { email, role: 'Admin' },
+              });
+              errorEmitter.emit('permission-error', permissionError);
+          });
+
+          toast({ title: "Admin Created", description: "Your administrative account has been initialized." });
+        } catch (createError: any) {
+          console.error("Provisioning failed:", createError);
+          toast({ 
+            variant: "destructive", 
+            title: "Access Denied", 
+            description: "Could not initialize admin account. Please contact system support." 
+          });
+        }
+      } else {
+        console.error("Login error:", error);
+        toast({ 
+          variant: "destructive", 
+          title: "Login Failed", 
+          description: "Invalid credentials or account not authorized." 
+        });
+      }
     } finally {
       setIsLoading(false);
     }
