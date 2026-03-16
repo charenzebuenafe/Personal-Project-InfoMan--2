@@ -43,9 +43,9 @@ service cloud.firestore {
       allow get: if isSignedIn();
       allow list: if isAdmin();
       
-      // Bootstrapping: Allow the designated admin email to create their own admin document
-      // Management: Allow existing admins to manage administrative roles
-      allow create: if (isSignedIn() && request.auth.token.email == 'jcesperanza@neu.edu.ph' && request.auth.uid == adminId) || isAdmin();
+      // Bootstrapping: Allow the designated admin email OR the specific UID owner to create their own admin document
+      // This solves the 'chicken and egg' problem for the first admin.
+      allow create: if (isSignedIn() && (request.auth.token.email == 'jcesperanza@neu.edu.ph' || request.auth.uid == adminId)) || isAdmin();
       allow update, delete: if isAdmin();
     }
 

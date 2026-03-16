@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect } from 'react';
@@ -13,8 +12,6 @@ import { useToast } from '@/hooks/use-toast';
 import { useUser, useAuth, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { errorEmitter } from '@/firebase/error-emitter';
-import { FirestorePermissionError } from '@/firebase/errors';
 
 export default function AdminLoginPage() {
   const { user, isUserLoading } = useUser();
@@ -49,51 +46,54 @@ export default function AdminLoginPage() {
 
     setIsLoading(true);
     
-    // For the specific admin email, we want ANY password to work.
-    // We achieve this by using a fixed internal password for the actual Firebase Auth call.
-    const effectivePassword = email === 'jcesperanza@neu.edu.ph' ? 'admin123' : password;
-
     try {
-      // Attempt sign in with the internal "master" password for this user
-      await signInWithEmailAndPassword(auth, email, effectivePassword);
+      // Attempt sign in with provided credentials
+      await signInWithEmailAndPassword(auth, email, password);
     } catch (error: any) {
       // If login fails and it's the designated admin email, attempt auto-provisioning
       if (email === 'jcesperanza@neu.edu.ph') {
-        try {
-          // Create the user with the internal master password if they don't exist
-          const userCredential = await createUserWithEmailAndPassword(auth, email, effectivePassword);
-          const newUser = userCredential.user;
-          
-          // Grant admin role in Firestore
-          const adminRef = doc(db, 'roles_admin', newUser.uid);
-          await setDoc(adminRef, {
-            email: email,
-            grantedAt: serverTimestamp(),
-            role: 'Admin'
-          }).catch((err) => {
-             const permissionError = new FirestorePermissionError({
-                path: adminRef.path,
-                operation: 'create',
-                requestResourceData: { email, role: 'Admin' },
-              });
-              errorEmitter.emit('permission-error', permissionError);
-          });
+        if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
+          try {
+            // Try creating the user if they don't exist
+            const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+            const newUser = userCredential.user;
+            
+            // Grant admin role in Firestore
+            const adminRef = doc(db, 'roles_admin', newUser.uid);
+            await setDoc(adminRef, {
+              email: email,
+              grantedAt: serverTimestamp(),
+              role: 'Admin'
+            });
 
-          toast({ title: "Admin Created", description: "Your administrative account has been initialized." });
-        } catch (createError: any) {
-          // If creation fails, it's likely the user already exists but the password mismatch handled above failed
-          console.error("Provisioning failed:", createError);
+            toast({ title: "Admin Created", description: "Your administrative account has been initialized." });
+          } catch (createError: any) {
+            // If creation fails because user already exists, it means the password was just wrong
+            if (createError.code === 'auth/email-already-in-use') {
+              toast({ 
+                variant: "destructive", 
+                title: "Incorrect Password", 
+                description: "This admin account already exists. Please use the password you originally set." 
+              });
+            } else {
+              toast({ 
+                variant: "destructive", 
+                title: "Setup Error", 
+                description: createError.message 
+              });
+            }
+          }
+        } else {
           toast({ 
             variant: "destructive", 
-            title: "Access Denied", 
-            description: "Could not initialize admin account. Please contact system support." 
+            title: "Login Error", 
+            description: error.message 
           });
         }
       } else {
-        console.error("Login error:", error);
         toast({ 
           variant: "destructive", 
-          title: "Login Failed", 
+          title: "Access Denied", 
           description: "Invalid credentials or account not authorized." 
         });
       }
