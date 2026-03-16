@@ -13,6 +13,8 @@ import { Progress } from '@/components/ui/progress';
 import { useFirestore, useAuth } from '@/firebase';
 import { collection, query, where, getDocs, doc, setDoc, addDoc, serverTimestamp } from 'firebase/firestore';
 import { signInAnonymously } from 'firebase/auth';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
 
 const COLLEGES = [
   'College of Arts and Sciences',
@@ -46,9 +48,11 @@ export default function CheckInTerminal() {
 
   // Sign in anonymously in the background so we have permissions to query Firestore
   useEffect(() => {
-    signInAnonymously(auth).catch((err) => {
-      console.error("Anonymous auth failed", err);
-    });
+    if (!auth.currentUser) {
+      signInAnonymously(auth).catch((err) => {
+        console.error("Anonymous auth failed", err);
+      });
+    }
   }, [auth]);
 
   const handleEmailSubmit = async (e: React.FormEvent) => {
@@ -57,8 +61,17 @@ export default function CheckInTerminal() {
 
     setIsLoading(true);
     try {
-      const q = query(collection(db, 'users'), where('institutionalEmail', '==', email.toLowerCase().trim()));
-      const querySnapshot = await getDocs(q);
+      const usersRef = collection(db, 'users');
+      const q = query(usersRef, where('institutionalEmail', '==', email.toLowerCase().trim()));
+      
+      const querySnapshot = await getDocs(q).catch(async (serverError) => {
+        const permissionError = new FirestorePermissionError({
+          path: usersRef.path,
+          operation: 'list',
+        } satisfies SecurityRuleContext);
+        errorEmitter.emit('permission-error', permissionError);
+        throw serverError;
+      });
       
       if (!querySnapshot.empty) {
         const userData = querySnapshot.docs[0].data();
@@ -68,12 +81,7 @@ export default function CheckInTerminal() {
         setStep('info');
       }
     } catch (error: any) {
-      console.error(error);
-      toast({ 
-        variant: "destructive", 
-        title: "Access Error", 
-        description: "Could not connect to the database. Please try again." 
-      });
+      // Central error listener handles Permission errors; we just stop loading here.
     } finally {
       setIsLoading(false);
     }
@@ -88,9 +96,13 @@ export default function CheckInTerminal() {
 
     setIsLoading(true);
     try {
-      const newUserRef = doc(collection(db, 'users'));
+      // Use the current anonymous UID for the profile to satisfy isOwner rules if needed later
+      const uid = auth.currentUser?.uid;
+      if (!uid) throw new Error("Authentication required");
+
+      const userDocRef = doc(db, 'users', uid);
       const userData = {
-        id: newUserRef.id,
+        id: uid,
         fullName: name,
         institutionalEmail: email.toLowerCase().trim(),
         collegeOrOffice: college,
@@ -101,12 +113,20 @@ export default function CheckInTerminal() {
         updatedAt: serverTimestamp(),
       };
       
-      await setDoc(newUserRef, userData);
+      await setDoc(userDocRef, userData).catch(async (serverError) => {
+        const permissionError = new FirestorePermissionError({
+          path: userDocRef.path,
+          operation: 'create',
+          requestResourceData: userData,
+        } satisfies SecurityRuleContext);
+        errorEmitter.emit('permission-error', permissionError);
+        throw serverError;
+      });
+
       setRegisteredUser(userData);
       setStep('purpose');
     } catch (error: any) {
-      console.error(error);
-      toast({ variant: "destructive", title: "Error", description: "Could not save profile." });
+      // Handled by global emitter if permission error
     } finally {
       setIsLoading(false);
     }
@@ -116,17 +136,28 @@ export default function CheckInTerminal() {
     if (!registeredUser) return;
     setIsLoading(true);
     
+    const visitLogData = {
+      userId: registeredUser.id,
+      visitorName: registeredUser.fullName,
+      visitorCollegeOrOffice: registeredUser.collegeOrOffice,
+      visitorIsEmployee: registeredUser.isEmployee,
+      checkInDateTime: serverTimestamp(),
+      purposeOfVisitId: selectedPurpose,
+      purposeName: selectedPurpose,
+      wasBlockedAttempt: false,
+      checkInMethod: 'Manual Email Input',
+    };
+
     try {
-      await addDoc(collection(db, 'visit_logs'), {
-        userId: registeredUser.id,
-        visitorName: registeredUser.fullName,
-        visitorCollegeOrOffice: registeredUser.collegeOrOffice,
-        visitorIsEmployee: registeredUser.isEmployee,
-        checkInDateTime: serverTimestamp(),
-        purposeOfVisitId: selectedPurpose,
-        purposeName: selectedPurpose,
-        wasBlockedAttempt: false,
-        checkInMethod: 'Manual Email Input',
+      const logsRef = collection(db, 'visit_logs');
+      await addDoc(logsRef, visitLogData).catch(async (serverError) => {
+        const permissionError = new FirestorePermissionError({
+          path: logsRef.path,
+          operation: 'create',
+          requestResourceData: visitLogData,
+        } satisfies SecurityRuleContext);
+        errorEmitter.emit('permission-error', permissionError);
+        throw serverError;
       });
       
       setStep('success');
@@ -138,8 +169,7 @@ export default function CheckInTerminal() {
         setRegisteredUser(null);
       }, 3000);
     } catch (error: any) {
-      console.error(error);
-      toast({ variant: "destructive", title: "Check-in Error", description: "Could not log visit." });
+      // Handled by global emitter
     } finally {
       setIsLoading(false);
     }

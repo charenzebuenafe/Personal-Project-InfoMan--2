@@ -1,36 +1,47 @@
 "use client";
 
 import { useState } from 'react';
-import { db, type Visitor } from '@/lib/db';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Search, UserMinus, UserCheck, ShieldAlert } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
+import { Search, UserMinus, UserCheck, ShieldAlert, Loader2 } from 'lucide-react';
+import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
+import { collection, query, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
 
 export default function VisitorManagement() {
+  const db = useFirestore();
   const [search, setSearch] = useState('');
-  const [visitors, setVisitors] = useState<Visitor[]>(db.getAllVisitors());
-  const [blockedIds, setBlockedIds] = useState<string[]>(db.getBlockedIds());
-  const { toast } = useToast();
 
-  const filtered = visitors.filter(v => 
-    v.name.toLowerCase().includes(search.toLowerCase()) || 
-    v.id.toLowerCase().includes(search.toLowerCase())
+  const visitorsQuery = useMemoFirebase(() => {
+    if (!db) return null;
+    return query(collection(db, 'users'));
+  }, [db]);
+
+  const { data: visitors, isLoading } = useCollection(visitorsQuery);
+
+  const filtered = (visitors || []).filter(v => 
+    v.fullName?.toLowerCase().includes(search.toLowerCase()) || 
+    v.institutionalEmail?.toLowerCase().includes(search.toLowerCase())
   );
 
-  const toggleBlock = (id: string) => {
-    const isCurrentlyBlocked = blockedIds.includes(id);
-    if (isCurrentlyBlocked) {
-      db.unblockVisitor(id);
-      setBlockedIds(blockedIds.filter(bid => bid !== id));
-      toast({ title: "Access Restored", description: `Visitor ${id} has been unblocked.` });
-    } else {
-      db.blockVisitor(id);
-      setBlockedIds([...blockedIds, id]);
-      toast({ variant: "destructive", title: "Access Restricted", description: `Visitor ${id} has been blocked from entry.` });
-    }
+  const toggleBlock = async (id: string, currentStatus: boolean) => {
+    const userRef = doc(db, 'users', id);
+    const newStatus = !currentStatus;
+    
+    updateDoc(userRef, { 
+      isBlocked: newStatus,
+      updatedAt: serverTimestamp() 
+    }).catch(async (serverError) => {
+      const permissionError = new FirestorePermissionError({
+        path: userRef.path,
+        operation: 'update',
+        requestResourceData: { isBlocked: newStatus },
+      } satisfies SecurityRuleContext);
+      errorEmitter.emit('permission-error', permissionError);
+    });
   };
 
   return (
@@ -49,7 +60,7 @@ export default function VisitorManagement() {
           <div className="relative w-full md:w-64">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input 
-              placeholder="Search name or ID..." 
+              placeholder="Search name or email..." 
               className="pl-9"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
@@ -69,19 +80,27 @@ export default function VisitorManagement() {
                 </tr>
               </thead>
               <tbody className="divide-y">
-                {filtered.map((v) => {
-                  const isBlocked = blockedIds.includes(v.id);
+                {isLoading ? (
+                  <tr>
+                    <td colSpan={5} className="text-center py-12">
+                      <Loader2 className="w-8 h-8 animate-spin mx-auto text-primary" />
+                    </td>
+                  </tr>
+                ) : filtered.map((v) => {
+                  const isBlocked = v.isBlocked;
                   return (
-                    <tr key={v.id} className={isBlocked ? "bg-red-50/30" : ""}>
+                    <tr key={v.id} className={isBlocked ? "bg-destructive/5" : ""}>
                       <td className="px-6 py-4">
-                        <div className="font-bold">{v.name}</div>
-                        <div className="text-xs text-muted-foreground">{v.id}</div>
+                        <div className="font-bold">{v.fullName}</div>
+                        <div className="text-xs text-muted-foreground">{v.institutionalEmail}</div>
                       </td>
                       <td className="px-6 py-4">
-                        {v.college !== 'N/A' ? v.college : v.office}
+                        {v.collegeOrOffice}
                       </td>
                       <td className="px-6 py-4 capitalize">
-                        <Badge variant="secondary">{v.type}</Badge>
+                        <Badge variant="secondary">
+                          {v.isEmployee ? 'Employee' : 'Student'}
+                        </Badge>
                       </td>
                       <td className="px-6 py-4">
                         {isBlocked ? (
@@ -97,7 +116,7 @@ export default function VisitorManagement() {
                         <Button 
                           variant={isBlocked ? "outline" : "destructive"} 
                           size="sm"
-                          onClick={() => toggleBlock(v.id)}
+                          onClick={() => toggleBlock(v.id, !!isBlocked)}
                           className="gap-2"
                         >
                           {isBlocked ? (

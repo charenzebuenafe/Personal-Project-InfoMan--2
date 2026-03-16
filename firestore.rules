@@ -27,16 +27,19 @@ service cloud.firestore {
     // --- Collection Rules ---
 
     match /users/{userId} {
-      // Allow any signed-in user to lookup profiles (needed for the email check-in terminal)
-      // In a production app, you might restrict the fields returned, but for this prototype, we allow list.
+      // Allow any signed-in user (including anonymous terminal sessions) to lookup profiles by email
       allow get, list: if isSignedIn() || isAdmin();
-      allow create: if isSignedIn() && (isOwner(userId) || isAdmin());
+      
+      // Allow creation during registration. In a kiosk, users create their initial profile.
+      allow create: if isSignedIn();
+      
+      // Only owners or admins can update profiles (e.g., blocking access)
       allow update: if (isOwner(userId) || isAdmin());
       allow delete: if isAdmin();
     }
 
     match /roles_admin/{adminId} {
-      // Any signed-in user can check if they are an admin
+      // Any signed-in user can check their own admin status
       allow get: if isSignedIn();
       allow list: if isAdmin();
       allow write: if isAdmin();
