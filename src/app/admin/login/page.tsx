@@ -12,6 +12,8 @@ import { useToast } from '@/hooks/use-toast';
 import { useUser, useAuth, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
 
 export default function AdminLoginPage() {
   const { user, isUserLoading } = useUser();
@@ -39,7 +41,9 @@ export default function AdminLoginPage() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !password) {
+    const cleanEmail = email.toLowerCase().trim();
+    
+    if (!cleanEmail || !password) {
       toast({ variant: "destructive", title: "Missing Fields", description: "Please enter your email and password." });
       return;
     }
@@ -47,40 +51,44 @@ export default function AdminLoginPage() {
     setIsLoading(true);
     
     try {
-      // Attempt sign in with provided credentials
-      await signInWithEmailAndPassword(auth, email, password);
+      // Attempt sign in
+      await signInWithEmailAndPassword(auth, cleanEmail, password);
     } catch (error: any) {
-      // If login fails and it's the designated admin email, attempt auto-provisioning
-      if (email === 'jcesperanza@neu.edu.ph') {
+      // If it's the primary admin email, we handle creation or credential errors gracefully
+      if (cleanEmail === 'jcesperanza@neu.edu.ph') {
         if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
           try {
             // Try creating the user if they don't exist
-            const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+            const userCredential = await createUserWithEmailAndPassword(auth, cleanEmail, password);
             const newUser = userCredential.user;
             
             // Grant admin role in Firestore
             const adminRef = doc(db, 'roles_admin', newUser.uid);
             await setDoc(adminRef, {
-              email: email,
+              email: cleanEmail,
               grantedAt: serverTimestamp(),
               role: 'Admin'
+            }).catch((err) => {
+              const permissionError = new FirestorePermissionError({
+                path: adminRef.path,
+                operation: 'create',
+                requestResourceData: { email: cleanEmail, role: 'Admin' },
+              });
+              errorEmitter.emit('permission-error', permissionError);
+              throw err;
             });
 
             toast({ title: "Admin Created", description: "Your administrative account has been initialized." });
           } catch (createError: any) {
-            // If creation fails because user already exists, it means the password was just wrong
             if (createError.code === 'auth/email-already-in-use') {
+              // This means the password was just wrong for an existing account
               toast({ 
                 variant: "destructive", 
                 title: "Incorrect Password", 
                 description: "This admin account already exists. Please use the password you originally set." 
               });
             } else {
-              toast({ 
-                variant: "destructive", 
-                title: "Setup Error", 
-                description: createError.message 
-              });
+              // Other errors (like permission errors which are handled by the emitter)
             }
           }
         } else {

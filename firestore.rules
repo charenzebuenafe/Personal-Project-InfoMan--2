@@ -27,13 +27,13 @@ service cloud.firestore {
     // --- Collection Rules ---
 
     match /users/{userId} {
-      // Allow any signed-in user (including anonymous terminal sessions) to lookup profiles by email
+      // Allow any signed-in user to lookup profiles. Admins have full access.
       allow get, list: if isSignedIn() || isAdmin();
       
-      // Allow creation during registration. In a kiosk, users create their initial profile.
+      // Allow creation during registration.
       allow create: if isSignedIn();
       
-      // Only owners or admins can update profiles (e.g., blocking access)
+      // Only owners or admins can update profiles
       allow update: if (isOwner(userId) || isAdmin());
       allow delete: if isAdmin();
     }
@@ -43,8 +43,8 @@ service cloud.firestore {
       allow get: if isSignedIn();
       allow list: if isAdmin();
       
-      // Bootstrapping: Allow the designated admin email OR the specific UID owner to create their own admin document
-      // This solves the 'chicken and egg' problem for the first admin.
+      // Bootstrapping: Allow the designated admin email OR the specific UID owner to create their own admin document.
+      // We check the email directly from the token.
       allow create: if (isSignedIn() && (request.auth.token.email == 'jcesperanza@neu.edu.ph' || request.auth.uid == adminId)) || isAdmin();
       allow update, delete: if isAdmin();
     }
