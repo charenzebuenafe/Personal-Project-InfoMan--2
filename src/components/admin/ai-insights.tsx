@@ -13,16 +13,19 @@ export default function AIInsights({ logs }: { logs: VisitorLog[] }) {
 
   useEffect(() => {
     async function fetchInsights() {
-      if (logs.length === 0) return;
+      if (!logs || logs.length === 0) return;
       
       setLoading(true);
       setError(false);
       try {
         const result = await adminVisitorTrendAnalysis({
           visitorLogs: logs.map(l => ({
-            checkInTime: l.checkInTime,
-            purposeOfVisit: l.purposeOfVisit,
-            collegeOrOffice: l.collegeOrOffice
+            // Convert Firestore Timestamp to ISO string for the AI flow
+            checkInTime: l.checkInDateTime?.toDate?.() 
+              ? l.checkInDateTime.toDate().toISOString() 
+              : new Date().toISOString(),
+            purposeOfVisit: l.purposeName || 'Unknown',
+            collegeOrOffice: l.visitorCollegeOrOffice || 'N/A'
           }))
         });
         setInsights(result);
@@ -37,7 +40,7 @@ export default function AIInsights({ logs }: { logs: VisitorLog[] }) {
     fetchInsights();
   }, [logs]);
 
-  if (logs.length === 0) {
+  if (!logs || logs.length === 0) {
     return (
       <div className="py-4 text-center text-sm text-muted-foreground">
         Insufficient data for AI analysis.
@@ -97,7 +100,7 @@ export default function AIInsights({ logs }: { logs: VisitorLog[] }) {
         </ul>
       </div>
 
-      {insights.unusualActivities.length > 0 && (
+      {insights.unusualActivities && insights.unusualActivities.length > 0 && (
         <div className="space-y-3">
           <div className="flex items-center gap-2 text-amber-600 font-bold">
             <AlertTriangle className="w-4 h-4" />
