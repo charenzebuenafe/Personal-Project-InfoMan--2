@@ -1,0 +1,210 @@
+{
+  "entities": {
+    "User": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "User",
+      "type": "object",
+      "description": "Represents an individual (student, faculty, staff) registered within the NEU Library system, capable of being a visitor or an administrator. This entity stores core profile information and access status.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the User entity."
+        },
+        "rfidTagId": {
+          "type": "string",
+          "description": "The unique RFID tag ID associated with the user's NEU School ID. This field is optional but must be unique if present."
+        },
+        "institutionalEmail": {
+          "type": "string",
+          "description": "The user's institutional Google-based email address (e.g., jcesperanza@neu.edu.ph). This field is optional but must be unique if present.",
+          "format": "email"
+        },
+        "fullName": {
+          "type": "string",
+          "description": "The full name of the user as displayed in the system."
+        },
+        "collegeOrOffice": {
+          "type": "string",
+          "description": "The college or office within NEU that the user belongs to."
+        },
+        "isEmployee": {
+          "type": "boolean",
+          "description": "A flag indicating whether the user is an employee (teacher or staff) of NEU."
+        },
+        "isBlocked": {
+          "type": "boolean",
+          "description": "A flag indicating if the user is currently blocked by an administrator from entering the library."
+        },
+        "roleIds": {
+          "type": "array",
+          "description": "References to UserRole entities that define the roles assigned to this user. A user can have multiple roles (e.g., 'Admin', 'Visitor'). (Relationship: User N:N UserRole)",
+          "items": {
+            "type": "string"
+          }
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "The timestamp when the user's profile was first created in the system.",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "The timestamp when the user's profile was last updated in the system.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "fullName",
+        "collegeOrOffice",
+        "isEmployee",
+        "isBlocked",
+        "roleIds",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "UserRole": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "UserRole",
+      "type": "object",
+      "description": "Defines the distinct roles available within the NEU Library system, such as 'Admin' or 'Visitor', used for role-based access control.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the UserRole entity."
+        },
+        "name": {
+          "type": "string",
+          "description": "The distinct name of the role (e.g., 'Admin', 'Visitor')."
+        },
+        "description": {
+          "type": "string",
+          "description": "A detailed explanation of the role's purpose and associated permissions."
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "description"
+      ]
+    },
+    "PurposeOfVisit": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "PurposeOfVisit",
+      "type": "object",
+      "description": "Represents a predefined category for the reason a user is visiting the NEU Library (e.g., 'Reading Books', 'Research in Thesis').",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the PurposeOfVisit entity."
+        },
+        "name": {
+          "type": "string",
+          "description": "The short, descriptive name of the purpose of visit."
+        },
+        "description": {
+          "type": "string",
+          "description": "A more elaborate description of the purpose of visit."
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "description"
+      ]
+    },
+    "VisitLog": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "VisitLog",
+      "type": "object",
+      "description": "Records each individual instance of a user's visit to the NEU Library, including check-in details and their stated purpose.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the VisitLog entry."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to the User who made this visit. (Relationship: User 1:N VisitLog)"
+        },
+        "purposeOfVisitId": {
+          "type": "string",
+          "description": "Reference to the PurposeOfVisit for this specific visit. (Relationship: PurposeOfVisit 1:N VisitLog)"
+        },
+        "checkInDateTime": {
+          "type": "string",
+          "description": "The exact date and time when the user checked into the library.",
+          "format": "date-time"
+        },
+        "wasBlockedAttempt": {
+          "type": "boolean",
+          "description": "Indicates whether this specific check-in attempt was denied because the user was marked as 'blocked' at the time of entry."
+        },
+        "checkInMethod": {
+          "type": "string",
+          "description": "The method used by the user to check in (e.g., 'RFID Tap', 'Institutional Email')."
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "purposeOfVisitId",
+        "checkInDateTime",
+        "wasBlockedAttempt",
+        "checkInMethod"
+      ]
+    }
+  },
+  "auth": {
+    "providers": [
+      "password",
+      "anonymous"
+    ]
+  },
+  "firestore": {
+    "structure": [
+      {
+        "path": "/users/{userId}",
+        "definition": {
+          "entityName": "User",
+          "schema": {
+            "$ref": "#/backend/entities/User"
+          },
+          "description": "Stores individual user profiles, identified by their Firebase Authentication UID. Each user has read/write access to their own profile. Administrators can read all user profiles and update the `isBlocked` status for any user. Includes denormalized 'roleIds' for application-level context, but the primary 'Admin' role is determined by the separate '/roles_admin' collection for security rule efficiency."
+        }
+      },
+      {
+        "path": "/roles_admin/{adminId}",
+        "definition": {
+          "entityName": "User",
+          "schema": {
+            "$ref": "#/backend/entities/User"
+          },
+          "description": "This collection implements the global 'Admin' role using an 'existence over content' pattern. A document at `/roles_admin/{userId}` indicates that the user with that `userId` possesses administrative privileges. This design provides Authorization Independence by allowing atomic checks in security rules. Any authenticated user can read this collection to check for admin status, but only existing administrators can create or delete documents here."
+        }
+      },
+      {
+        "path": "/purpose_of_visits/{purposeId}",
+        "definition": {
+          "entityName": "PurposeOfVisit",
+          "schema": {
+            "$ref": "#/backend/entities/PurposeOfVisit"
+          },
+          "description": "Stores predefined categories for why a visitor enters the library. This collection is read-only for all authenticated users (visitors select from these options) and read/write for administrators to manage the available options."
+        }
+      },
+      {
+        "path": "/visit_logs/{visitLogId}",
+        "definition": {
+          "entityName": "VisitLog",
+          "schema": {
+            "$ref": "#/backend/entities/VisitLog"
+          },
+          "description": "Records each instance of a user's visit to the library. To facilitate secure and efficient querying for admin dashboards (QAPs) without `get()` calls in security rules, this document includes denormalized fields from the associated `User` (e.g., `visitorName`, `visitorCollegeOrOffice`, `visitorIsEmployee`) and `PurposeOfVisit` (e.g., `purposeName`). Visitors can create their own visit logs. Only administrators have read/list access to all visit logs for statistical analysis."
+        }
+      }
+    ],
+    "reasoning": "The recommended Firestore structure is designed with a strong emphasis on Authorization Independence, adherence to Query As Projections (QAPs), and clear structural segregation to ensure robust security and efficient debugging. The core strategy is to denormalize authorization context and essential query filter fields directly into the documents where they are needed, thereby eliminating the need for `get()` calls in security rules and enabling efficient `list` operations.\n\n1.  **Authorization Independence (Denormalization):**\n    *   **User Roles:** Instead of relying on a `roleIds` array within the `/users/{userId}` document for primary security rule enforcement, a dedicated collection, `/roles_admin/{adminId}`, is used. The mere *existence* of a document in this collection for `request.auth.uid` grants admin privileges. This completely decouples admin authorization from the user's profile document, making admin checks atomic and straightforward (`exists(/roles_admin/$(request.auth.uid))`).\n    *   **VisitLog Data:** For the `/visit_logs/{visitLogId}` collection, crucial filtering attributes from the `User` and `PurposeOfVisit` entities (e.g., `visitorCollegeOrOffice`, `visitorIsEmployee`, `purposeName`) are denormalized and stored directly within each `VisitLog` document. This means security rules governing `VisitLog` access or filtering do not need to perform `get()` operations on parent `User` or `PurposeOfVisit` documents. This is critical for maintaining atomicity and simplifying rule logic.\n\n2.  **Structural Segregation (Homogeneous Security Posture):**\n    *   **User Profiles (`/users/{userId}`):** This collection is primarily for storing user-specific profile information. Documents are generally accessible by the user themselves (`request.auth.uid == userId`) and by administrators for management tasks (e.g., setting `isBlocked`).\n    *   **Admin Roles (`/roles_admin/{adminId}`):** This collection is exclusively for defining who is an administrator. Its security posture is global-read for authentication checks, and write-restricted to existing administrators for management.\n    *   **Purpose of Visits (`/purpose_of_visits/{purposeId}`):** This collection holds static, predefined options for visit purposes. It has a read-all-authenticated posture for visitors (to select a purpose) and read/write for administrators (to manage options).\n    *   **Visit Logs (`/visit_logs/{visitLogId}`):** This collection is designed for high-volume write operations by visitors and high-volume read/query operations by administrators. Its security posture is write-by-self and read-by-admin, enforced without complex hierarchical dependencies.\n\n3.  **QAPs (Rules Are Not Filters):**\n    *   By denormalizing `visitorCollegeOrOffice`, `visitorIsEmployee`, and `purposeName` into `VisitLog` documents, administrators can execute `list` queries with filters directly on the `/visit_logs` collection. For example, an admin can query `visit_logs.where('visitorIsEmployee', '==', true)` without the security rules needing to filter results *after* they are retrieved, or perform `get()` calls to check each log's associated user. The security rule simply grants read access to the entire `visit_logs` collection to authenticated administrators, knowing that all necessary filtering data is present within each document. This ensures that only relevant data is retrieved from Firestore and that client-side filtering isn't relied upon for security.\n\nThis architecture prioritizes clarity, security, and performance by moving complexity from dynamic rule logic to static data structure design."
+  }
+}
