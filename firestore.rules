@@ -42,7 +42,11 @@ service cloud.firestore {
       // Any signed-in user can check their own admin status
       allow get: if isSignedIn();
       allow list: if isAdmin();
-      allow write: if isAdmin();
+      
+      // Bootstrapping: Allow the designated admin email to create their own admin document
+      // Management: Allow existing admins to manage administrative roles
+      allow create: if (isSignedIn() && request.auth.token.email == 'jcesperanza@neu.edu.ph' && request.auth.uid == adminId) || isAdmin();
+      allow update, delete: if isAdmin();
     }
 
     match /purpose_of_visits/{purposeId} {
