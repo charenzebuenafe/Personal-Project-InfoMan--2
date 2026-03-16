@@ -1,43 +1,53 @@
+
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
-import { ShieldCheck, Lock, Loader2, ArrowLeft } from 'lucide-react';
+import { ShieldCheck, LogIn, Loader2, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 import { useToast } from '@/hooks/use-toast';
+import { useUser, useAuth, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
+import { GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
+import { doc } from 'firebase/firestore';
 
 export default function AdminLoginPage() {
-  const [password, setPassword] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
+  const { user, isUserLoading } = useUser();
+  const auth = useAuth();
+  const db = useFirestore();
   const router = useRouter();
   const { toast } = useToast();
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleLogin = (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
+  const adminDocRef = useMemoFirebase(() => {
+    if (!db || !user) return null;
+    return doc(db, 'roles_admin', user.uid);
+  }, [db, user]);
 
-    // Artificial delay for feel
-    setTimeout(() => {
-      if (password === 'admin123') {
-        localStorage.setItem('admin_auth', 'true');
-        toast({
-          title: "Access Granted",
-          description: "Welcome to the Admin Dashboard.",
-        });
+  const { data: adminRole, isLoading: isAdminChecking } = useDoc(adminDocRef);
+
+  useEffect(() => {
+    if (user && !isAdminChecking) {
+      if (adminRole) {
+        toast({ title: "Access Granted", description: "Welcome to the Admin Dashboard." });
         router.push('/admin/dashboard');
-      } else {
-        toast({
-          variant: "destructive",
-          title: "Access Denied",
-          description: "Incorrect administrative password.",
-        });
-        setIsLoading(false);
+      } else if (user) {
+        toast({ variant: "destructive", title: "Access Denied", description: "You do not have administrative privileges." });
       }
-    }, 800);
+    }
+  }, [user, adminRole, isAdminChecking, router, toast]);
+
+  const handleLogin = async () => {
+    setIsLoading(true);
+    const provider = new GoogleAuthProvider();
+    try {
+      await signInWithPopup(auth, provider);
+    } catch (error: any) {
+      toast({ variant: "destructive", title: "Login Failed", description: error.message });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -51,39 +61,33 @@ export default function AdminLoginPage() {
           </div>
           <CardTitle className="text-2xl font-bold">Admin Portal</CardTitle>
           <CardDescription>
-            Enter your credentials to access management tools
+            Authentication required to access management tools
           </CardDescription>
         </CardHeader>
-        <form onSubmit={handleLogin}>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="password">Administrator Password</Label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <Input
-                  id="password"
-                  type="password"
-                  placeholder="••••••••"
-                  className="pl-9 h-12"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  autoFocus
-                />
-              </div>
-            </div>
-          </CardContent>
-          <CardFooter className="flex flex-col gap-4">
-            <Button type="submit" className="w-full h-12 text-lg" disabled={isLoading}>
-              {isLoading ? <Loader2 className="animate-spin mr-2" /> : "Verify Identity"}
+        <CardContent className="space-y-4">
+           <Button 
+            onClick={handleLogin} 
+            className="w-full h-14 text-lg gap-3 bg-white border-2 border-primary/10 hover:bg-muted text-primary font-bold" 
+            disabled={isLoading || isUserLoading}
+          >
+            {isLoading || isUserLoading ? (
+              <Loader2 className="animate-spin" />
+            ) : (
+              <>
+                <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" className="w-6 h-6" />
+                Admin Google Login
+              </>
+            )}
+          </Button>
+        </CardContent>
+        <CardFooter className="flex flex-col gap-4">
+          <Link href="/" className="w-full">
+            <Button variant="ghost" className="w-full gap-2">
+              <ArrowLeft className="w-4 h-4" />
+              Back to Terminal
             </Button>
-            <Link href="/" className="w-full">
-              <Button variant="ghost" className="w-full gap-2">
-                <ArrowLeft className="w-4 h-4" />
-                Back to Terminal
-              </Button>
-            </Link>
-          </CardFooter>
-        </form>
+          </Link>
+        </CardFooter>
       </Card>
     </div>
   );

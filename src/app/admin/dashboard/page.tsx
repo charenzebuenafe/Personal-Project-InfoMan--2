@@ -1,28 +1,76 @@
+
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { db, type VisitorLog } from '@/lib/db';
 import StatsOverview from '@/components/admin/stats-overview';
 import VisitorChart from '@/components/admin/visitor-chart';
 import AIInsights from '@/components/admin/ai-insights';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
-import { CalendarIcon, Download } from 'lucide-react';
-import { format } from 'date-fns';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { CalendarIcon, Download, Filter, RefreshCcw } from 'lucide-react';
+import { format, subDays, subWeeks, subMonths } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
+import { collection, query, where, orderBy } from 'firebase/firestore';
+
+const COLLEGES = [
+  'All Colleges',
+  'College of Arts and Sciences',
+  'College of Engineering',
+  'College of Computer Studies',
+  'College of Business Administration',
+  'College of Education',
+  'College of Nursing',
+  'College of Criminology',
+  'College of Music',
+  'Graduate School',
+  'University Office',
+  'Other'
+];
+
+const PURPOSES = [
+  'All Purposes',
+  'reading books',
+  'research in thesis',
+  'use of computer',
+  'doing assignments'
+];
 
 export default function AdminDashboard() {
-  const [logs, setLogs] = useState<VisitorLog[]>([]);
+  const db = useFirestore();
   const [dateRange, setDateRange] = useState<{ from: Date | undefined; to: Date | undefined }>({
-    from: new Date(new Date().setDate(new Date().getDate() - 7)),
+    from: subWeeks(new Date(), 1),
     to: new Date()
   });
+  const [filterCollege, setFilterCollege] = useState('All Colleges');
+  const [filterPurpose, setFilterPurpose] = useState('All Purposes');
+  const [filterEmployee, setFilterEmployee] = useState('All Visitors');
 
-  useEffect(() => {
-    setLogs(db.getLogs(dateRange.from, dateRange.to));
-  }, [dateRange]);
+  const logsQuery = useMemoFirebase(() => {
+    if (!db) return null;
+    let q = query(collection(db, 'visit_logs'), orderBy('checkInDateTime', 'desc'));
+    
+    // In a real production app with massive data, you'd add composite indices and use where() clauses.
+    // For this MVP, we fetch and filter to ensure responsiveness and flexibility.
+    return q;
+  }, [db]);
+
+  const { data: allLogs, isLoading } = useCollection(logsQuery);
+
+  const filteredLogs = (allLogs || []).filter(log => {
+    const logDate = log.checkInDateTime?.toDate() || new Date();
+    const isInDateRange = (!dateRange.from || logDate >= dateRange.from) && (!dateRange.to || logDate <= dateRange.to);
+    const matchesCollege = filterCollege === 'All Colleges' || log.visitorCollegeOrOffice === filterCollege;
+    const matchesPurpose = filterPurpose === 'All Purposes' || log.purposeName === filterPurpose;
+    const matchesEmployee = filterEmployee === 'All Visitors' || 
+      (filterEmployee === 'Employees Only' && log.visitorIsEmployee) ||
+      (filterEmployee === 'Students Only' && !log.visitorIsEmployee);
+
+    return isInDateRange && matchesCollege && matchesPurpose && matchesEmployee;
+  });
 
   const handlePrint = () => {
     window.print();
@@ -36,16 +84,14 @@ export default function AdminDashboard() {
           <p className="text-muted-foreground">Monitor NEU Library activity and trends.</p>
         </div>
         
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Popover>
             <PopoverTrigger asChild>
               <Button variant="outline" className={cn("justify-start text-left font-normal", !dateRange.from && "text-muted-foreground")}>
                 <CalendarIcon className="mr-2 h-4 w-4" />
                 {dateRange.from ? (
                   dateRange.to ? (
-                    <>
-                      {format(dateRange.from, "LLL dd, y")} - {format(dateRange.to, "LLL dd, y")}
-                    </>
+                    <>{format(dateRange.from, "LLL dd, y")} - {format(dateRange.to, "LLL dd, y")}</>
                   ) : (
                     format(dateRange.from, "LLL dd, y")
                   )
@@ -73,26 +119,72 @@ export default function AdminDashboard() {
         </div>
       </div>
 
-      <StatsOverview logs={logs} />
+      <Card className="no-print">
+        <CardHeader className="pb-3">
+          <div className="flex items-center gap-2 text-primary font-bold">
+            <Filter className="w-4 h-4" />
+            <span>Advanced Filters</span>
+          </div>
+        </CardHeader>
+        <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="space-y-2">
+            <Label>College / Office</Label>
+            <Select value={filterCollege} onValueChange={setFilterCollege}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {COLLEGES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label>Visit Purpose</Label>
+            <Select value={filterPurpose} onValueChange={setFilterPurpose}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {PURPOSES.map(p => <SelectItem key={p} value={p} className="capitalize">{p}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label>Visitor Type</Label>
+            <Select value={filterEmployee} onValueChange={setFilterEmployee}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="All Visitors">All Visitors</SelectItem>
+                <SelectItem value="Students Only">Students Only</SelectItem>
+                <SelectItem value="Employees Only">Employees Only</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </CardContent>
+      </Card>
+
+      <StatsOverview logs={filteredLogs} />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <Card className="lg:col-span-2">
           <CardHeader>
             <CardTitle>Visitor Inflow</CardTitle>
-            <CardDescription>Daily visitor volume for the selected period</CardDescription>
+            <CardDescription>Daily visitor volume for the selected filters</CardDescription>
           </CardHeader>
           <CardContent>
-            <VisitorChart logs={logs} />
+            <VisitorChart logs={filteredLogs} />
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
             <CardTitle>AI Trend Analysis</CardTitle>
-            <CardDescription>Generated insights based on library data</CardDescription>
+            <CardDescription>Generated insights based on filtered data</CardDescription>
           </CardHeader>
           <CardContent>
-            <AIInsights logs={logs} />
+            <AIInsights logs={filteredLogs} />
           </CardContent>
         </Card>
       </div>
@@ -100,7 +192,7 @@ export default function AdminDashboard() {
       <Card>
         <CardHeader>
           <CardTitle>Recent Activity</CardTitle>
-          <CardDescription>The most recent check-ins recorded in the terminal</CardDescription>
+          <CardDescription>Filtered check-ins matching your criteria</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="relative overflow-x-auto">
@@ -110,16 +202,26 @@ export default function AdminDashboard() {
                   <th className="px-6 py-3">Visitor Name</th>
                   <th className="px-6 py-3">College/Office</th>
                   <th className="px-6 py-3">Purpose</th>
+                  <th className="px-6 py-3">Type</th>
                   <th className="px-6 py-3">Time</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
-                {logs.slice().reverse().slice(0, 10).map((log) => (
+                {isLoading ? (
+                  <tr><td colSpan={5} className="text-center py-10"><Loader2 className="animate-spin mx-auto" /></td></tr>
+                ) : filteredLogs.slice(0, 20).map((log) => (
                   <tr key={log.id}>
                     <td className="px-6 py-4 font-medium">{log.visitorName}</td>
-                    <td className="px-6 py-4">{log.collegeOrOffice}</td>
-                    <td className="px-6 py-4 capitalize">{log.purposeOfVisit}</td>
-                    <td className="px-6 py-4">{format(new Date(log.checkInTime), 'MMM dd, p')}</td>
+                    <td className="px-6 py-4">{log.visitorCollegeOrOffice}</td>
+                    <td className="px-6 py-4 capitalize">{log.purposeName}</td>
+                    <td className="px-6 py-4">
+                      {log.visitorIsEmployee ? (
+                        <span className="text-xs px-2 py-1 bg-accent/20 text-accent-foreground rounded-full font-bold">Employee</span>
+                      ) : (
+                        <span className="text-xs px-2 py-1 bg-primary/10 text-primary rounded-full font-bold">Student</span>
+                      )}
+                    </td>
+                    <td className="px-6 py-4">{log.checkInDateTime ? format(log.checkInDateTime.toDate(), 'MMM dd, p') : 'N/A'}</td>
                   </tr>
                 ))}
               </tbody>

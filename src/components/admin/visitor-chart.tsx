@@ -1,30 +1,33 @@
+
 "use client";
 
-import { type VisitorLog } from '@/lib/db';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
-import { Line, LineChart, XAxis, YAxis, CartesianGrid, ResponsiveContainer } from 'recharts';
-import { format, startOfDay, eachDayOfInterval } from 'date-fns';
+import { Line, LineChart, XAxis, YAxis, CartesianGrid } from 'recharts';
+import { format, startOfDay, eachDayOfInterval, isSameDay } from 'date-fns';
 
-export default function VisitorChart({ logs }: { logs: VisitorLog[] }) {
+export default function VisitorChart({ logs }: { logs: any[] }) {
   if (!logs.length) {
     return (
       <div className="h-[300px] flex items-center justify-center text-muted-foreground">
-        No data for the selected period.
+        No data for the selected filters.
       </div>
     );
   }
 
-  // Group logs by day
+  // Get date range from logs or default to last 7 days
+  const logDates = logs.map(l => l.checkInDateTime?.toDate().getTime()).filter(Boolean);
+  const minDate = logDates.length ? new Date(Math.min(...logDates)) : subDays(new Date(), 7);
+  const maxDate = logDates.length ? new Date(Math.max(...logDates)) : new Date();
+
   const dateRange = {
-    start: startOfDay(new Date(Math.min(...logs.map(l => new Date(l.checkInTime).getTime())))),
-    end: startOfDay(new Date(Math.max(...logs.map(l => new Date(l.checkInTime).getTime()))))
+    start: startOfDay(minDate),
+    end: startOfDay(maxDate)
   };
 
   const days = eachDayOfInterval({ start: dateRange.start, end: dateRange.end });
   
   const chartData = days.map(day => {
-    const dayStr = format(day, 'yyyy-MM-dd');
-    const count = logs.filter(l => format(new Date(l.checkInTime), 'yyyy-MM-dd') === dayStr).length;
+    const count = logs.filter(l => l.checkInDateTime && isSameDay(l.checkInDateTime.toDate(), day)).length;
     return {
       date: format(day, 'MMM dd'),
       count: count,

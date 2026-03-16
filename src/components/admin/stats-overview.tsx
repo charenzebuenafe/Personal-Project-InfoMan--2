@@ -1,23 +1,26 @@
+
 import { Card, CardContent } from '@/components/ui/card';
-import { type VisitorLog } from '@/lib/db';
 import { Users, Clock, Compass, TrendingUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-export default function StatsOverview({ logs }: { logs: VisitorLog[] }) {
+export default function StatsOverview({ logs }: { logs: any[] }) {
   const totalVisitors = logs.length;
   
   // Find peak purpose
   const purposeCounts: Record<string, number> = {};
   logs.forEach(log => {
-    purposeCounts[log.purposeOfVisit] = (purposeCounts[log.purposeOfVisit] || 0) + 1;
+    const purpose = log.purposeName || 'N/A';
+    purposeCounts[purpose] = (purposeCounts[purpose] || 0) + 1;
   });
   const peakPurpose = Object.entries(purposeCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || 'N/A';
 
   // Find peak hour
   const hourCounts: Record<number, number> = {};
   logs.forEach(log => {
-    const hour = new Date(log.checkInTime).getHours();
-    hourCounts[hour] = (hourCounts[hour] || 0) + 1;
+    if (log.checkInDateTime) {
+      const hour = log.checkInDateTime.toDate().getHours();
+      hourCounts[hour] = (hourCounts[hour] || 0) + 1;
+    }
   });
   const peakHour = Object.entries(hourCounts).sort((a, b) => b[1] - a[1])[0]?.[0];
   const peakTimeLabel = peakHour !== undefined ? `${peakHour}:00 - ${+peakHour + 1}:00` : 'N/A';
@@ -26,7 +29,7 @@ export default function StatsOverview({ logs }: { logs: VisitorLog[] }) {
     { title: 'Total Visits', value: totalVisitors, icon: Users, color: 'text-primary', bg: 'bg-primary/10' },
     { title: 'Peak Purpose', value: peakPurpose, icon: Compass, color: 'text-accent-foreground', bg: 'bg-accent/20', capitalize: true },
     { title: 'Peak Hour', value: peakTimeLabel, icon: Clock, color: 'text-primary', bg: 'bg-primary/10' },
-    { title: 'Unique Users', value: new Set(logs.map(l => l.visitorId)).size, icon: TrendingUp, color: 'text-accent-foreground', bg: 'bg-accent/20' },
+    { title: 'Unique Users', value: new Set(logs.map(l => l.userId)).size, icon: TrendingUp, color: 'text-accent-foreground', bg: 'bg-accent/20' },
   ];
 
   return (

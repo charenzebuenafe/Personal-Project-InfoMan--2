@@ -1,48 +1,59 @@
+
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { LayoutDashboard, Users, UserX, FileText, ArrowLeft, LogOut } from 'lucide-react';
+import { LayoutDashboard, Users, UserX, FileText, ArrowLeft, LogOut, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider } from '@/components/ui/sidebar';
+import { useUser, useAuth, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
+import { signOut } from 'firebase/auth';
+import { doc } from 'firebase/firestore';
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null);
+  const { user, isUserLoading } = useUser();
+  const auth = useAuth();
+  const db = useFirestore();
+
+  const adminDocRef = useMemoFirebase(() => {
+    if (!db || !user) return null;
+    return doc(db, 'roles_admin', user.uid);
+  }, [db, user]);
+
+  const { data: adminRole, isLoading: isAdminChecking } = useDoc(adminDocRef);
 
   useEffect(() => {
-    const auth = localStorage.getItem('admin_auth');
-    if (pathname === '/admin/login') {
-      setIsAuthorized(true);
-      return;
-    }
+    if (pathname === '/admin/login') return;
 
-    if (auth !== 'true') {
+    if (!isUserLoading && !user) {
       router.push('/admin/login');
-    } else {
-      setIsAuthorized(true);
+    } else if (user && !isAdminChecking && !adminRole) {
+      router.push('/admin/login');
     }
-  }, [pathname, router]);
+  }, [user, isUserLoading, isAdminChecking, adminRole, pathname, router]);
 
-  const handleSignOut = () => {
-    localStorage.removeItem('admin_auth');
+  const handleSignOut = async () => {
+    await signOut(auth);
     router.push('/');
   };
 
-  if (isAuthorized === null) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="animate-pulse text-primary font-medium">Verifying authorization...</div>
-      </div>
-    );
-  }
-
-  // Don't wrap the login page in the sidebar layout
   if (pathname === '/admin/login') {
     return <>{children}</>;
+  }
+
+  if (isUserLoading || isAdminChecking || !adminRole) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="w-12 h-12 animate-spin text-primary" />
+          <div className="text-primary font-medium">Verifying administrative access...</div>
+        </div>
+      </div>
+    );
   }
 
   const menuItems = [

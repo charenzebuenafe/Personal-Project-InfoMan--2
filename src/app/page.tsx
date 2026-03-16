@@ -1,7 +1,7 @@
+
 import Link from 'next/link';
 import { Terminal, ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import CheckInTerminal from '@/components/check-in-terminal';
 
 export default function Home() {

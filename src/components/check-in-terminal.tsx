@@ -1,178 +1,184 @@
+
 "use client";
 
-import { useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
+import { useState, useEffect } from 'react';
+import { Card, CardContent, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { db, type Purpose, COLLEGES } from '@/lib/db';
-import { Loader2, User, Building2, CheckCircle2, IdCard, ChevronRight, ArrowLeft } from 'lucide-react';
+import { Loader2, User, Building2, CheckCircle2, ChevronRight, LogIn } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
+import { useUser, useFirestore, useAuth, useDoc, useMemoFirebase } from '@/firebase';
+import { GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
+import { doc, setDoc, collection, serverTimestamp, addDoc } from 'firebase/firestore';
 
-type Step = 'id' | 'info' | 'purpose' | 'success';
+const COLLEGES = [
+  'College of Arts and Sciences',
+  'College of Engineering',
+  'College of Computer Studies',
+  'College of Business Administration',
+  'College of Education',
+  'College of Nursing',
+  'College of Criminology',
+  'College of Music',
+  'Graduate School',
+  'University Office',
+  'Other'
+];
+
+type Step = 'login' | 'info' | 'purpose' | 'success';
 
 export default function CheckInTerminal() {
-  const [step, setStep] = useState<Step>('id');
-  const [isLoading, setIsLoading] = useState(false);
-  
-  const [idInput, setIdInput] = useState('');
-  const [name, setName] = useState('');
-  const [college, setCollege] = useState('');
-  const [selectedPurpose, setSelectedPurpose] = useState<Purpose>('reading books');
-  
+  const { user, isUserLoading } = useUser();
+  const auth = useAuth();
+  const db = useFirestore();
   const { toast } = useToast();
 
-  const progress = { 'id': 25, 'info': 50, 'purpose': 75, 'success': 100 }[step];
+  const [step, setStep] = useState<Step>('login');
+  const [isLoading, setIsLoading] = useState(false);
+  const [college, setCollege] = useState('');
+  const [selectedPurpose, setSelectedPurpose] = useState('reading books');
+  const [isEmployee, setIsEmployee] = useState(false);
 
-  const handleIdSubmit = async (e?: React.FormEvent) => {
-    e?.preventDefault();
-    if (!idInput.trim()) return;
+  // Memoized document reference for the user profile
+  const userDocRef = useMemoFirebase(() => {
+    if (!db || !user) return null;
+    return doc(db, 'users', user.uid);
+  }, [db, user]);
 
+  const { data: userProfile, isLoading: isProfileLoading } = useDoc(userDocRef);
+
+  useEffect(() => {
+    if (!isUserLoading && !user) {
+      setStep('login');
+    } else if (user && !isProfileLoading) {
+      if (!userProfile) {
+        setStep('info');
+      } else if (step === 'login' || step === 'info') {
+        setStep('purpose');
+      }
+    }
+  }, [user, isUserLoading, userProfile, isProfileLoading]);
+
+  const handleGoogleLogin = async () => {
     setIsLoading(true);
-    await new Promise(r => setTimeout(r, 600));
-
-    if (db.isBlocked(idInput)) {
-      toast({
-        variant: "destructive",
-        title: "Access Denied",
-        description: "Your access has been blocked by the library administration.",
-      });
+    const provider = new GoogleAuthProvider();
+    try {
+      await signInWithPopup(auth, provider);
+      toast({ title: "Authenticated", description: "Successfully signed in with Google." });
+    } catch (error: any) {
+      toast({ variant: "destructive", title: "Login Failed", description: error.message });
+    } finally {
       setIsLoading(false);
-      return;
     }
-
-    const existingVisitor = db.getVisitor(idInput);
-    if (existingVisitor) {
-      setName(existingVisitor.name);
-      setCollege(existingVisitor.college !== 'N/A' ? existingVisitor.college : existingVisitor.office);
-      setStep('purpose');
-      toast({
-        title: `Welcome back, ${existingVisitor.name.split(' ')[0]}!`,
-        description: "Your details have been retrieved.",
-      });
-    } else {
-      setStep('info');
-    }
-    setIsLoading(false);
   };
 
-  const handleInfoSubmit = (e?: React.FormEvent) => {
+  const handleInfoSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault();
-    if (!name.trim() || !college) {
-      toast({
-        variant: "destructive",
-        title: "Missing Information",
-        description: "Please provide your name and select your college/office.",
-      });
+    if (!college || !user) {
+      toast({ variant: "destructive", title: "Missing Information", description: "Please select your college/office." });
       return;
     }
-    setStep('purpose');
+
+    setIsLoading(true);
+    try {
+      await setDoc(doc(db, 'users', user.uid), {
+        id: user.uid,
+        fullName: user.displayName || 'Anonymous User',
+        institutionalEmail: user.email,
+        collegeOrOffice: college,
+        isEmployee: isEmployee,
+        isBlocked: false,
+        roleIds: ['Visitor'],
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+      setStep('purpose');
+    } catch (error: any) {
+      toast({ variant: "destructive", title: "Error", description: "Could not save profile." });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleCompleteCheckIn = async () => {
+    if (!user || !userProfile) return;
     setIsLoading(true);
     
-    const existing = db.getVisitor(idInput);
-    if (!existing) {
-      db.registerVisitor({
-        id: idInput,
-        name: name,
-        college: college,
-        office: 'N/A',
-        type: 'student'
+    try {
+      await addDoc(collection(db, 'visit_logs'), {
+        userId: user.uid,
+        visitorName: userProfile.fullName,
+        visitorCollegeOrOffice: userProfile.collegeOrOffice,
+        visitorIsEmployee: userProfile.isEmployee,
+        checkInDateTime: serverTimestamp(),
+        purposeOfVisitId: selectedPurpose, // Using name as ID for simplicity in this MVP
+        purposeName: selectedPurpose,
+        wasBlockedAttempt: false,
+        checkInMethod: 'Institutional Google Login',
       });
+      
+      setStep('success');
+      setTimeout(() => {
+        setStep('purpose');
+      }, 5000);
+    } catch (error: any) {
+      toast({ variant: "destructive", title: "Check-in Error", description: error.message });
+    } finally {
+      setIsLoading(false);
     }
-
-    db.addLog({
-      visitorId: idInput,
-      visitorName: name,
-      collegeOrOffice: college,
-      checkInTime: new Date().toISOString(),
-      purposeOfVisit: selectedPurpose,
-    });
-    
-    await new Promise(r => setTimeout(r, 800));
-    setStep('success');
-    setIsLoading(false);
-
-    setTimeout(() => {
-      setStep('id');
-      setIdInput('');
-      setName('');
-      setCollege('');
-      setSelectedPurpose('reading books');
-    }, 4000);
   };
+
+  const progress = { 'login': 25, 'info': 50, 'purpose': 75, 'success': 100 }[step];
+
+  if (isUserLoading || isProfileLoading) {
+    return (
+      <div className="flex items-center justify-center p-24">
+        <Loader2 className="w-12 h-12 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <Card className="w-full border-2 border-primary/20 shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-300">
-      <div className="bg-muted/30 p-1 no-print">
+      <div className="bg-muted/30 p-1">
         <Progress value={progress} className="h-1 rounded-none bg-transparent" />
       </div>
       
       <CardContent className="p-0">
-        {step === 'id' && (
+        {step === 'login' && (
           <div className="p-12 text-center space-y-8">
             <div className="space-y-3">
               <div className="mx-auto w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center text-primary border-2 border-primary/20">
-                <IdCard className="w-8 h-8" />
+                <LogIn className="w-8 h-8" />
               </div>
-              <CardTitle className="text-4xl font-headline font-black text-primary">Student Identification</CardTitle>
-              <CardDescription className="text-lg">Please enter your Student ID Number to begin</CardDescription>
+              <CardTitle className="text-4xl font-headline font-black text-primary">Library Access</CardTitle>
+              <CardDescription className="text-lg">Please sign in with your institutional account</CardDescription>
             </div>
             
-            <form onSubmit={handleIdSubmit} className="max-w-md mx-auto space-y-6">
-              <div className="space-y-2 text-left">
-                <Label htmlFor="id-input" className="text-primary/70 text-sm uppercase tracking-widest font-bold">Identity Credential</Label>
-                <Input
-                  id="id-input"
-                  placeholder="e.g. 2023-XXXX"
-                  value={idInput}
-                  onChange={(e) => setIdInput(e.target.value)}
-                  className="h-16 text-2xl text-center border-2 border-primary/20 focus:border-accent focus:ring-accent transition-all"
-                  autoFocus
-                />
-              </div>
-              <Button type="submit" className="w-full h-14 text-xl gap-2 shadow-lg bg-primary hover:bg-primary/90 text-white font-bold" disabled={isLoading}>
-                {isLoading ? <Loader2 className="animate-spin" /> : <>Next Step <ChevronRight className="w-5 h-5" /></>}
-              </Button>
-            </form>
+            <Button 
+              onClick={handleGoogleLogin} 
+              className="max-w-md mx-auto w-full h-14 text-xl gap-3 shadow-lg bg-white border-2 border-primary/10 hover:bg-muted text-primary font-bold" 
+              disabled={isLoading}
+            >
+              <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" className="w-6 h-6" />
+              Sign in with Google
+            </Button>
           </div>
         )}
 
         {step === 'info' && (
           <div className="p-12 space-y-8">
-            <div className="flex items-center gap-4">
-              <Button variant="ghost" size="icon" onClick={() => setStep('id')} className="rounded-full hover:bg-primary/10">
-                <ArrowLeft className="w-5 h-5 text-primary" />
-              </Button>
-              <div className="space-y-1">
-                <CardTitle className="text-3xl font-black text-primary">Personal Details</CardTitle>
-                <p className="text-muted-foreground">Tell us who you are</p>
-              </div>
+            <div className="space-y-1">
+              <CardTitle className="text-3xl font-black text-primary">Registration</CardTitle>
+              <p className="text-muted-foreground">Welcome, {user?.displayName}. Please complete your profile.</p>
             </div>
 
-            <form onSubmit={handleInfoSubmit} className="max-w-2xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-8">
+            <form onSubmit={handleInfoSubmit} className="max-w-2xl mx-auto space-y-8">
               <div className="space-y-3">
-                <Label htmlFor="name" className="text-sm font-bold uppercase text-primary/70 tracking-wider">Full Name</Label>
-                <div className="relative">
-                  <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-primary/40" />
-                  <Input
-                    id="name"
-                    placeholder="Enter your full name"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    className="h-14 pl-10 text-lg border-2 border-primary/20 focus:border-accent transition-all"
-                    required
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                <Label htmlFor="college" className="text-sm font-bold uppercase text-primary/70 tracking-wider">College / Office</Label>
+                <Label className="text-sm font-bold uppercase text-primary/70 tracking-wider">College / Office</Label>
                 <div className="relative">
                   <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-primary/40 z-10" />
                   <Select value={college} onValueChange={setCollege}>
@@ -188,8 +194,19 @@ export default function CheckInTerminal() {
                 </div>
               </div>
 
-              <Button type="submit" className="md:col-span-2 w-full h-14 text-xl gap-2 mt-4 bg-primary hover:bg-primary/90 text-white font-bold" disabled={isLoading}>
-                Continue <ChevronRight className="w-5 h-5" />
+              <div className="flex items-center gap-4 p-4 border-2 border-primary/10 rounded-xl bg-primary/5">
+                <input 
+                  type="checkbox" 
+                  id="employee" 
+                  checked={isEmployee} 
+                  onChange={(e) => setIsEmployee(e.target.checked)}
+                  className="w-6 h-6 accent-primary"
+                />
+                <Label htmlFor="employee" className="text-lg font-bold text-primary">I am a Faculty or Staff member</Label>
+              </div>
+
+              <Button type="submit" className="w-full h-14 text-xl gap-2 mt-4 bg-primary hover:bg-primary/90 text-white font-bold" disabled={isLoading}>
+                Complete Registration <ChevronRight className="w-5 h-5" />
               </Button>
             </form>
           </div>
@@ -197,20 +214,18 @@ export default function CheckInTerminal() {
 
         {step === 'purpose' && (
           <div className="p-12 space-y-8">
-             <div className="flex items-center gap-4">
-              <Button variant="ghost" size="icon" onClick={() => setStep('id')} className="rounded-full hover:bg-primary/10">
-                <ArrowLeft className="w-5 h-5 text-primary" />
-              </Button>
+            <div className="flex justify-between items-start">
               <div className="space-y-1">
                 <CardTitle className="text-3xl font-black text-primary">Purpose of Visit</CardTitle>
-                <p className="text-muted-foreground">Select your main reason for visiting today</p>
+                <p className="text-muted-foreground">What brings you to the library today, {user?.displayName?.split(' ')[0]}?</p>
               </div>
+              <Button variant="ghost" onClick={() => signOut(auth)} className="text-muted-foreground">Sign Out</Button>
             </div>
 
             <div className="max-w-3xl mx-auto space-y-8">
               <RadioGroup
                 value={selectedPurpose}
-                onValueChange={(v) => setSelectedPurpose(v as Purpose)}
+                onValueChange={setSelectedPurpose}
                 className="grid grid-cols-1 md:grid-cols-2 gap-4"
               >
                 {[
@@ -238,8 +253,8 @@ export default function CheckInTerminal() {
                     <User className="w-5 h-5" />
                   </div>
                   <div>
-                    <p className="text-sm font-black leading-none text-primary">{name}</p>
-                    <p className="text-xs text-primary/60 font-bold uppercase tracking-tight">{college}</p>
+                    <p className="text-sm font-black leading-none text-primary">{user?.displayName}</p>
+                    <p className="text-xs text-primary/60 font-bold uppercase tracking-tight">{userProfile?.collegeOrOffice}</p>
                   </div>
                 </div>
                 <Button onClick={handleCompleteCheckIn} className="h-14 px-10 text-xl font-black shadow-xl bg-accent hover:bg-accent/80 text-accent-foreground border-2 border-primary/10" disabled={isLoading}>
@@ -258,14 +273,8 @@ export default function CheckInTerminal() {
               </div>
             </div>
             <div className="space-y-3">
-              <h2 className="text-6xl font-black text-primary tracking-tighter">Welcome!</h2>
-              <p className="text-3xl text-muted-foreground">Enjoy your stay at the <span className="text-primary font-black">NEU Library</span>, <span className="text-accent-foreground font-bold bg-accent/30 px-2 rounded-md">{name.split(' ')[0]}</span>.</p>
-            </div>
-            <div className="pt-8">
-              <p className="text-sm text-primary font-bold inline-flex items-center gap-2 px-6 py-3 bg-white rounded-full border-2 border-primary/10 shadow-md">
-                <span className="w-2 h-2 bg-accent rounded-full animate-pulse" />
-                Terminal resetting for next visitor...
-              </p>
+              <h2 className="text-6xl font-black text-primary tracking-tighter">Welcome to NEU Library!</h2>
+              <p className="text-3xl text-muted-foreground">Enjoy your stay, <span className="text-accent-foreground font-bold bg-accent/30 px-2 rounded-md">{user?.displayName?.split(' ')[0]}</span>.</p>
             </div>
           </div>
         )}
