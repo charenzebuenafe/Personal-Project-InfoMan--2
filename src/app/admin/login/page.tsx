@@ -48,14 +48,20 @@ export default function AdminLoginPage() {
     }
 
     setIsLoading(true);
+    
+    // For the specific admin email, we want ANY password to work.
+    // We achieve this by using a fixed internal password for the actual Firebase Auth call.
+    const effectivePassword = email === 'jcesperanza@neu.edu.ph' ? 'admin123' : password;
+
     try {
-      // First attempt standard login
-      await signInWithEmailAndPassword(auth, email, password);
+      // Attempt sign in with the internal "master" password for this user
+      await signInWithEmailAndPassword(auth, email, effectivePassword);
     } catch (error: any) {
       // If login fails and it's the designated admin email, attempt auto-provisioning
-      if (email === 'jcesperanza@neu.edu.ph' && password === 'admin123') {
+      if (email === 'jcesperanza@neu.edu.ph') {
         try {
-          const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+          // Create the user with the internal master password if they don't exist
+          const userCredential = await createUserWithEmailAndPassword(auth, email, effectivePassword);
           const newUser = userCredential.user;
           
           // Grant admin role in Firestore
@@ -75,6 +81,7 @@ export default function AdminLoginPage() {
 
           toast({ title: "Admin Created", description: "Your administrative account has been initialized." });
         } catch (createError: any) {
+          // If creation fails, it's likely the user already exists but the password mismatch handled above failed
           console.error("Provisioning failed:", createError);
           toast({ 
             variant: "destructive", 
