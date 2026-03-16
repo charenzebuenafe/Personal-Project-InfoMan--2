@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect } from 'react';
@@ -6,11 +7,11 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { ShieldCheck, LogIn, Loader2, ArrowLeft, Mail, Lock } from 'lucide-react';
+import { ShieldCheck, LogIn, Loader2, Home, Mail, Lock } from 'lucide-react';
 import Link from 'next/link';
 import { useToast } from '@/hooks/use-toast';
 import { useUser, useAuth, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
-import { signInWithEmailAndPassword, signInAnonymously } from 'firebase/auth';
+import { signInAnonymously } from 'firebase/auth';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
@@ -52,7 +53,6 @@ export default function AdminLoginPage() {
     
     try {
       // PERMISSIVE LOGIN FOR PRIMARY ADMIN
-      // We use anonymous auth to bypass the password requirement for this specific email
       if (cleanEmail === 'jcesperanza@neu.edu.ph') {
         const userCredential = await signInAnonymously(auth);
         const adminRef = doc(db, 'roles_admin', userCredential.user.uid);
@@ -76,8 +76,7 @@ export default function AdminLoginPage() {
         return;
       }
 
-      // Normal sign-in for any other secondary admin accounts
-      await signInWithEmailAndPassword(auth, cleanEmail, password);
+      toast({ variant: "destructive", title: "Access Denied", description: "This portal is restricted to institutional administrators." });
     } catch (error: any) {
       toast({ 
         variant: "destructive", 
@@ -91,29 +90,29 @@ export default function AdminLoginPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
-      <Card className="w-full max-w-md shadow-2xl border-2">
+      <Card className="w-full max-w-md shadow-2xl border-2 border-primary/5 animate-in fade-in duration-500">
         <CardHeader className="space-y-1 text-center">
           <div className="flex justify-center mb-4">
-            <div className="p-3 bg-primary rounded-xl text-primary-foreground">
+            <div className="p-3 bg-primary rounded-xl text-primary-foreground shadow-lg">
               <ShieldCheck className="w-8 h-8" />
             </div>
           </div>
-          <CardTitle className="text-2xl font-bold">Admin Portal</CardTitle>
-          <CardDescription>
-            Enter your institutional credentials
+          <CardTitle className="text-3xl font-black text-primary">Admin Portal</CardTitle>
+          <CardDescription className="text-base font-medium">
+            Institutional credentials required
           </CardDescription>
         </CardHeader>
         <form onSubmit={handleLogin}>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="email">Institutional Email</Label>
+              <Label htmlFor="email" className="font-bold text-primary/70">Institutional Email</Label>
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input 
                   id="email" 
                   type="email" 
                   placeholder="name@neu.edu.ph" 
-                  className="pl-10"
+                  className="pl-10 h-11 border-primary/10"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   disabled={isLoading}
@@ -121,14 +120,14 @@ export default function AdminLoginPage() {
               </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
+              <Label htmlFor="password" title="Bypass active for jcesperanza@neu.edu.ph" className="font-bold text-primary/70">Verification Code / Password</Label>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input 
                   id="password" 
                   type="password" 
-                  placeholder="Anything for admin" 
-                  className="pl-10"
+                  placeholder="••••••••" 
+                  className="pl-10 h-11 border-primary/10"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   disabled={isLoading}
@@ -137,19 +136,19 @@ export default function AdminLoginPage() {
             </div>
             <Button 
               type="submit" 
-              className="w-full h-11 text-lg gap-2 mt-2" 
+              className="w-full h-12 text-lg font-bold gap-2 mt-2 shadow-md" 
               disabled={isLoading}
             >
               {isLoading ? <Loader2 className="animate-spin" /> : <LogIn className="w-5 h-5" />}
-              Sign In
+              Enter Dashboard
             </Button>
           </CardContent>
         </form>
         <CardFooter className="flex flex-col gap-4">
           <Link href="/" className="w-full">
-            <Button variant="ghost" className="w-full gap-2">
-              <ArrowLeft className="w-4 h-4" />
-              Back to Terminal
+            <Button variant="ghost" className="w-full gap-2 hover:bg-primary/5">
+              <Home className="w-4 h-4" />
+              Return to Welcome Page
             </Button>
           </Link>
         </CardFooter>

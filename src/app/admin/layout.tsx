@@ -96,8 +96,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           </SidebarContent>
           <SidebarFooter className="p-4 border-t">
             <div className="flex flex-col gap-2">
-              <Link href="/">
-                <Button variant="ghost" className="w-full justify-start gap-2 text-muted-foreground">
+              <Link href="/terminal">
+                <Button variant="ghost" className="w-full justify-start gap-2 text-muted-foreground hover:text-primary">
                   <ArrowLeft className="w-4 h-4" />
                   Terminal Mode
                 </Button>
