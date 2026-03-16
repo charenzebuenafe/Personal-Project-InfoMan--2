@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect } from 'react';
@@ -53,43 +54,45 @@ export default function AdminLoginPage() {
     setIsLoading(true);
     
     try {
-      // Attempt standard sign in
+      let userCredential;
+      
       try {
-        await signInWithEmailAndPassword(auth, cleanEmail, password);
+        // 1. Attempt standard sign in
+        userCredential = await signInWithEmailAndPassword(auth, cleanEmail, password);
       } catch (signInErr: any) {
-        // If it's a primary admin and login fails, try to register them
-        if (PRIMARY_ADMINS.includes(cleanEmail)) {
+        // 2. If user not found and it's a primary admin, create the account
+        if (PRIMARY_ADMINS.includes(cleanEmail) && (signInErr.code === 'auth/user-not-found' || signInErr.code === 'auth/invalid-credential')) {
           try {
-            const userCredential = await createUserWithEmailAndPassword(auth, cleanEmail, password);
-            const adminRef = doc(db, 'roles_admin', userCredential.user.uid);
-            
-            await setDoc(adminRef, {
-              email: cleanEmail,
-              grantedAt: serverTimestamp(),
-              role: 'Admin',
-              isAutoProvisioned: true
-            }).catch((err) => {
-              const permissionError = new FirestorePermissionError({
-                path: adminRef.path,
-                operation: 'create',
-                requestResourceData: { email: cleanEmail, role: 'Admin' },
-              });
-              errorEmitter.emit('permission-error', permissionError);
-              throw err;
-            });
-
-            toast({ title: "Admin Account Created", description: "You are now registered as a system administrator." });
-            return;
+            userCredential = await createUserWithEmailAndPassword(auth, cleanEmail, password);
           } catch (createErr: any) {
-            // If email already in use, it means sign-in failed due to wrong password
+            // If creation fails because user already exists (invalid-credential was wrong), 
+            // then it really is an invalid password
             if (createErr.code === 'auth/email-already-in-use') {
-              toast({ variant: "destructive", title: "Login Failed", description: "Incorrect password for this administrator account." });
-              return;
+              throw signInErr;
             }
             throw createErr;
           }
+        } else {
+          throw signInErr;
         }
-        throw signInErr;
+      }
+
+      // 3. For primary admins, ensure the roles_admin record exists or is updated
+      if (PRIMARY_ADMINS.includes(cleanEmail) && userCredential) {
+        const adminRef = doc(db, 'roles_admin', userCredential.user.uid);
+        await setDoc(adminRef, {
+          email: cleanEmail,
+          grantedAt: serverTimestamp(),
+          role: 'Admin',
+          isAutoProvisioned: true
+        }, { merge: true }).catch((err) => {
+          const permissionError = new FirestorePermissionError({
+            path: adminRef.path,
+            operation: 'create',
+            requestResourceData: { email: cleanEmail, role: 'Admin' },
+          });
+          errorEmitter.emit('permission-error', permissionError);
+        });
       }
     } catch (error: any) {
       console.error(error);
