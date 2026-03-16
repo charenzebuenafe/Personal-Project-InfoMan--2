@@ -5,11 +5,13 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ShieldCheck, LogIn, Loader2, ArrowLeft } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { ShieldCheck, LogIn, Loader2, ArrowLeft, Mail, Lock } from 'lucide-react';
 import Link from 'next/link';
 import { useToast } from '@/hooks/use-toast';
 import { useUser, useAuth, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
-import { GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
+import { signInWithEmailAndPassword } from 'firebase/auth';
 import { doc } from 'firebase/firestore';
 
 export default function AdminLoginPage() {
@@ -19,6 +21,8 @@ export default function AdminLoginPage() {
   const router = useRouter();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
 
   const adminDocRef = useMemoFirebase(() => {
     if (!db || !user) return null;
@@ -28,23 +32,29 @@ export default function AdminLoginPage() {
   const { data: adminRole, isLoading: isAdminChecking } = useDoc(adminDocRef);
 
   useEffect(() => {
-    if (user && !isAdminChecking) {
-      if (adminRole) {
-        toast({ title: "Access Granted", description: "Welcome to the Admin Dashboard." });
-        router.push('/admin/dashboard');
-      } else if (user) {
-        toast({ variant: "destructive", title: "Access Denied", description: "You do not have administrative privileges." });
-      }
+    if (user && !isAdminChecking && adminRole) {
+      toast({ title: "Access Granted", description: "Welcome to the Admin Dashboard." });
+      router.push('/admin/dashboard');
     }
   }, [user, adminRole, isAdminChecking, router, toast]);
 
-  const handleLogin = async () => {
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email || !password) {
+      toast({ variant: "destructive", title: "Missing Fields", description: "Please enter your email and password." });
+      return;
+    }
+
     setIsLoading(true);
-    const provider = new GoogleAuthProvider();
     try {
-      await signInWithPopup(auth, provider);
+      await signInWithEmailAndPassword(auth, email, password);
     } catch (error: any) {
-      toast({ variant: "destructive", title: "Login Failed", description: error.message });
+      console.error(error);
+      toast({ 
+        variant: "destructive", 
+        title: "Login Failed", 
+        description: "Invalid credentials or account not authorized." 
+      });
     } finally {
       setIsLoading(false);
     }
@@ -61,25 +71,51 @@ export default function AdminLoginPage() {
           </div>
           <CardTitle className="text-2xl font-bold">Admin Portal</CardTitle>
           <CardDescription>
-            Authentication required to access management tools
+            Enter your institutional credentials
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-           <Button 
-            onClick={handleLogin} 
-            className="w-full h-14 text-lg gap-3 bg-white border-2 border-primary/10 hover:bg-muted text-primary font-bold" 
-            disabled={isLoading || isUserLoading}
-          >
-            {isLoading || isUserLoading ? (
-              <Loader2 className="animate-spin" />
-            ) : (
-              <>
-                <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" className="w-6 h-6" />
-                Admin Google Login
-              </>
-            )}
-          </Button>
-        </CardContent>
+        <form onSubmit={handleLogin}>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="email">Institutional Email</Label>
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input 
+                  id="email" 
+                  type="email" 
+                  placeholder="name@neu.edu.ph" 
+                  className="pl-10"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  disabled={isLoading}
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="password">Password</Label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input 
+                  id="password" 
+                  type="password" 
+                  placeholder="••••••••" 
+                  className="pl-10"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  disabled={isLoading}
+                />
+              </div>
+            </div>
+            <Button 
+              type="submit" 
+              className="w-full h-11 text-lg gap-2 mt-2" 
+              disabled={isLoading}
+            >
+              {isLoading ? <Loader2 className="animate-spin" /> : <LogIn className="w-5 h-5" />}
+              Sign In
+            </Button>
+          </CardContent>
+        </form>
         <CardFooter className="flex flex-col gap-4">
           <Link href="/" className="w-full">
             <Button variant="ghost" className="w-full gap-2">
