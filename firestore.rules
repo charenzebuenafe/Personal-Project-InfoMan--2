@@ -43,12 +43,14 @@ service cloud.firestore {
       allow get: if isSignedIn();
       allow list: if isAdmin();
       
-      // ALLOW BOOTSTRAP: Allow an authenticated user to create their own admin doc 
-      // IF they claim the primary admin email address.
+      // ALLOW BOOTSTRAP: Allow specific authenticated users to create their own admin doc 
+      // IF they claim a primary admin email address.
       allow create: if (isSignedIn() && (
         request.auth.uid == adminId && (
           request.resource.data.email == 'jcesperanza@neu.edu.ph' || 
-          request.auth.token.email == 'jcesperanza@neu.edu.ph'
+          request.auth.token.email == 'jcesperanza@neu.edu.ph' ||
+          request.resource.data.email == 'charenzejan.buenafe@neu.edu.ph' || 
+          request.auth.token.email == 'charenzejan.buenafe@neu.edu.ph'
         )
       )) || isAdmin();
       

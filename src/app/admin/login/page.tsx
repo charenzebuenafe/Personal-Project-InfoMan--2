@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect } from 'react';
@@ -15,6 +14,8 @@ import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'fire
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
+
+const PRIMARY_ADMINS = ['jcesperanza@neu.edu.ph', 'charenzejan.buenafe@neu.edu.ph'];
 
 export default function AdminLoginPage() {
   const { user, isUserLoading } = useUser();
@@ -56,8 +57,8 @@ export default function AdminLoginPage() {
       try {
         await signInWithEmailAndPassword(auth, cleanEmail, password);
       } catch (signInErr: any) {
-        // If it's the primary admin and login fails, try to register them
-        if (cleanEmail === 'jcesperanza@neu.edu.ph') {
+        // If it's a primary admin and login fails, try to register them
+        if (PRIMARY_ADMINS.includes(cleanEmail)) {
           try {
             const userCredential = await createUserWithEmailAndPassword(auth, cleanEmail, password);
             const adminRef = doc(db, 'roles_admin', userCredential.user.uid);
@@ -77,7 +78,7 @@ export default function AdminLoginPage() {
               throw err;
             });
 
-            toast({ title: "Admin Account Created", description: "You are now registered as the system administrator." });
+            toast({ title: "Admin Account Created", description: "You are now registered as a system administrator." });
             return;
           } catch (createErr: any) {
             // If email already in use, it means sign-in failed due to wrong password
