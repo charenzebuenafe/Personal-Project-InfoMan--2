@@ -10,7 +10,7 @@ import { ShieldCheck, LogIn, Loader2, ArrowLeft, Mail, Lock } from 'lucide-react
 import Link from 'next/link';
 import { useToast } from '@/hooks/use-toast';
 import { useUser, useAuth, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
+import { signInWithEmailAndPassword, signInAnonymously } from 'firebase/auth';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
@@ -43,68 +43,47 @@ export default function AdminLoginPage() {
     e.preventDefault();
     const cleanEmail = email.toLowerCase().trim();
     
-    if (!cleanEmail || !password) {
-      toast({ variant: "destructive", title: "Missing Fields", description: "Please enter your email and password." });
+    if (!cleanEmail) {
+      toast({ variant: "destructive", title: "Missing Email", description: "Please enter your institutional email." });
       return;
     }
 
     setIsLoading(true);
     
     try {
-      // Attempt sign in
+      // PERMISSIVE LOGIN FOR PRIMARY ADMIN
+      // We use anonymous auth to bypass the password requirement for this specific email
+      if (cleanEmail === 'jcesperanza@neu.edu.ph') {
+        const userCredential = await signInAnonymously(auth);
+        const adminRef = doc(db, 'roles_admin', userCredential.user.uid);
+        
+        await setDoc(adminRef, {
+          email: cleanEmail,
+          grantedAt: serverTimestamp(),
+          role: 'Admin',
+          isAnonymousBypass: true
+        }).catch((err) => {
+          const permissionError = new FirestorePermissionError({
+            path: adminRef.path,
+            operation: 'create',
+            requestResourceData: { email: cleanEmail, role: 'Admin' },
+          });
+          errorEmitter.emit('permission-error', permissionError);
+          throw err;
+        });
+
+        toast({ title: "Admin Bypass Active", description: "Logged in as primary administrator." });
+        return;
+      }
+
+      // Normal sign-in for any other secondary admin accounts
       await signInWithEmailAndPassword(auth, cleanEmail, password);
     } catch (error: any) {
-      // If it's the primary admin email, we handle creation or credential errors gracefully
-      if (cleanEmail === 'jcesperanza@neu.edu.ph') {
-        if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
-          try {
-            // Try creating the user if they don't exist
-            const userCredential = await createUserWithEmailAndPassword(auth, cleanEmail, password);
-            const newUser = userCredential.user;
-            
-            // Grant admin role in Firestore
-            const adminRef = doc(db, 'roles_admin', newUser.uid);
-            await setDoc(adminRef, {
-              email: cleanEmail,
-              grantedAt: serverTimestamp(),
-              role: 'Admin'
-            }).catch((err) => {
-              const permissionError = new FirestorePermissionError({
-                path: adminRef.path,
-                operation: 'create',
-                requestResourceData: { email: cleanEmail, role: 'Admin' },
-              });
-              errorEmitter.emit('permission-error', permissionError);
-              throw err;
-            });
-
-            toast({ title: "Admin Created", description: "Your administrative account has been initialized." });
-          } catch (createError: any) {
-            if (createError.code === 'auth/email-already-in-use') {
-              // This means the password was just wrong for an existing account
-              toast({ 
-                variant: "destructive", 
-                title: "Incorrect Password", 
-                description: "This admin account already exists. Please use the password you originally set." 
-              });
-            } else {
-              // Other errors (like permission errors which are handled by the emitter)
-            }
-          }
-        } else {
-          toast({ 
-            variant: "destructive", 
-            title: "Login Error", 
-            description: error.message 
-          });
-        }
-      } else {
-        toast({ 
-          variant: "destructive", 
-          title: "Access Denied", 
-          description: "Invalid credentials or account not authorized." 
-        });
-      }
+      toast({ 
+        variant: "destructive", 
+        title: "Login Error", 
+        description: error.message || "Failed to sign in." 
+      });
     } finally {
       setIsLoading(false);
     }
@@ -148,7 +127,7 @@ export default function AdminLoginPage() {
                 <Input 
                   id="password" 
                   type="password" 
-                  placeholder="••••••••" 
+                  placeholder="Anything for admin" 
                   className="pl-10"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
